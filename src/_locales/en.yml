@@ -61,8 +61,6 @@ settings:
   group_playback_page: Playback pages
   block_related_videos: Hide related recommendations
   block_related_videos_desc: 'Hide recommendations on playback pages and in the player; keep parts, collections, and episode lists.'
-  block_video_activities: Hide promotional activities
-  block_video_activities_desc: Hide activity promotions between the video description and comments; keep other resources.
   series_always_visible: 'Details are always visible, without hovering or clicking.'
   series_behavior_hint: This controls when actual cards show details. The preview stays expanded.
   series_behavior: Display behavior
@@ -184,11 +182,8 @@ settings:
   search_bar_link_opening_behavior: Search bar link opening behavior
   close_drawer_without_pressing_esc_again: Close the drawer without pressing <kbd>Esc</kbd> again
 
-  block_ads: Block ads
-  block_top_search_page_ads: Block Bilibili top search page ads
-  block_top_search_page_ads_desc: >
-    Sometimes, the ads above search results are actually year-end summaries or annual reports.
-    If you don't want these to be accidentally removed, please disable this option.
+  block_ads_and_promotions: Block ads and promotions
+  block_ads_and_promotions_desc: Hide site ads, promotions above search results, and playback promotions. Annual reports shown above search results are also hidden.
 
   enable_video_preview: Enable video preview feature (if possible)
   enable_video_ctrl_bar_on_video_card: Display the video control bar on the video card
@@ -521,10 +516,24 @@ history:
   turn_on_watch_history_confirm: Turn on watch history? Are you sure you want to turn on watch history?
 
 favorites:
+  folders: Favorite folders
+  search: Search this folder
+  batch_manage: Manage selection
+  selected_count: '{count} selected'
+  select_loaded: Select all loaded
+  deselect_loaded: Deselect all loaded
+  copy_to: Copy to
+  move_to: Move to
+  target_folder: Choose a destination folder
+  copy_success: Copied {count} items
+  move_success: Moved {count} items
+  clean_invalid: Clear unavailable items
+  clean_confirm: Clear all unavailable items from “{folder}”? This cannot be undone.
+  clean_success: Cleared unavailable items from this folder
+  clean_failed: Could not clear unavailable items. Try again.
   unfavorite: Unfavorite
-  unfavorite_confirm: |-
-    Remove selected video(s)?
-    This operation cannot be reversed. Are you sure you want to remove the selected video(s) from your favorites?
+  batch_failed: Completed {completed} of {count} items. Try again for the remaining items.
+  unfavorite_confirm: Remove these {count} items from this folder? This cannot be undone.
 
 watch_later:
   title: Watch Later

@@ -1,6 +1,20 @@
 import type { APIMAP } from '../../utils'
 import { AHS } from '../../utils'
 
+const formHeaders = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }
+const transferRequest = {
+  method: 'post',
+  headers: formHeaders,
+  body: {
+    resources: '',
+    src_media_id: 0,
+    tar_media_id: 0,
+    mid: '',
+    platform: 'web',
+    csrf: '',
+  },
+}
+
 const API_FAVORITE = {
   // https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/docs/fav/info.md#%E8%8E%B7%E5%8F%96%E6%8C%87%E5%AE%9A%E7%94%A8%E6%88%B7%E5%88%9B%E5%BB%BA%E7%9A%84%E6%89%80%E6%9C%89%E6%94%B6%E8%97%8F%E5%A4%B9%E4%BF%A1%E6%81%AF
   getFavoriteCategories: {
@@ -36,12 +50,37 @@ const API_FAVORITE = {
     url: 'https://api.bilibili.com/x/v3/fav/resource/batch-del',
     _fetch: {
       method: 'post',
+      headers: formHeaders,
+      body: {
+        resources: '',
+        media_id: 0,
+        platform: 'web',
+        csrf: '',
+      },
     },
-    params: {
-      resources: '',
-      media_id: 0,
-      csrf: '',
+    afterHandle: AHS.J_D,
+  },
+  cleanFavoriteResources: {
+    url: 'https://api.bilibili.com/x/v3/fav/resource/clean',
+    _fetch: {
+      method: 'post',
+      headers: formHeaders,
+      body: {
+        media_id: 0,
+        platform: 'web',
+        csrf: '',
+      },
     },
+    afterHandle: AHS.J_D,
+  },
+  copyFavoriteResources: {
+    url: 'https://api.bilibili.com/x/v3/fav/resource/copy',
+    _fetch: transferRequest,
+    afterHandle: AHS.J_D,
+  },
+  moveFavoriteResources: {
+    url: 'https://api.bilibili.com/x/v3/fav/resource/move',
+    _fetch: transferRequest,
     afterHandle: AHS.J_D,
   },
 } satisfies APIMAP

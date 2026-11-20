@@ -114,6 +114,7 @@ defineExpose({ initData })
         <VideoCard
           v-if="video.liveItem"
           :cover-loading="index < 10 ? 'eager' : 'lazy'"
+          reserve-title-space
           :skeleton="!video.liveItem"
           :video="video.liveItem ? {
             // id: Number(video.liveItem.modules.module_dynamic.major.archive?.aid),
@@ -137,6 +138,7 @@ defineExpose({ initData })
         <VideoCard
           v-else
           :cover-loading="index < 10 ? 'eager' : 'lazy'"
+          reserve-title-space
           :skeleton="!video.item"
           :video="video.item ? {
             id: Number(video.item.modules.module_dynamic.major.archive?.aid),

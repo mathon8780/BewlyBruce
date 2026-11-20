@@ -4,17 +4,10 @@ import { getPageType } from './pageScope'
 
 export interface PlaybackFocusOptions {
   blockRelatedVideos: boolean
-  blockVideoActivities: boolean
+  blockAdsAndPromotions: boolean
 }
 
-function isPlaybackPage() {
-  const url = new URL(location.href)
-  const page = getPageType(url.href)
-  return page === 'videoPage' || page === 'animePlayback&MoviePage'
-    || (page === 'watchLaterPage' && /^\/watchlater\/list(?:\/|$)/.test(url.pathname))
-}
-
-// 只用样式隐藏推荐和活动，不修改原站组件树，以免干扰初始化和评论懒加载。
+// 只用样式隐藏推荐和推广，不修改原站组件树，以免干扰初始化和评论懒加载。
 export function startPlaybackFocus(initial: PlaybackFocusOptions) {
   let options = { ...initial }
   let disposed = false
@@ -23,9 +16,14 @@ export function startPlaybackFocus(initial: PlaybackFocusOptions) {
   style.textContent = styles
 
   function refresh() {
-    const playback = isPlaybackPage()
-    document.documentElement.toggleAttribute('data-bewly-hide-recommendations', playback && options.blockRelatedVideos)
-    document.documentElement.toggleAttribute('data-bewly-hide-activities', playback && options.blockVideoActivities)
+    const url = new URL(location.href)
+    const page = getPageType(url.href)
+    const playback = page === 'videoPage' || page === 'animePlayback&MoviePage'
+      || (page === 'watchLaterPage' && /^\/watchlater\/list(?:\/|$)/.test(url.pathname))
+    const root = document.documentElement
+    root.toggleAttribute('data-bewly-hide-recommendations', playback && options.blockRelatedVideos)
+    root.toggleAttribute('data-bewly-hide-activities', playback && options.blockAdsAndPromotions)
+    root.toggleAttribute('data-bewly-hide-search-promotions', page === 'searchPage' && options.blockAdsAndPromotions)
   }
 
   function stop() {
@@ -34,15 +32,18 @@ export function startPlaybackFocus(initial: PlaybackFocusOptions) {
     window.removeEventListener('hashchange', refresh)
     document.documentElement.removeAttribute('data-bewly-hide-recommendations')
     document.documentElement.removeAttribute('data-bewly-hide-activities')
+    document.documentElement.removeAttribute('data-bewly-hide-search-promotions')
+    document.documentElement.classList.remove('block-useless-contents')
     style.remove()
   }
 
   function sync(next: PlaybackFocusOptions) {
     options = { ...next }
-    if (!options.blockRelatedVideos && !options.blockVideoActivities) {
+    if (!options.blockRelatedVideos && !options.blockAdsAndPromotions) {
       stop()
       return
     }
+    document.documentElement.classList.toggle('block-useless-contents', options.blockAdsAndPromotions)
     if (!style.isConnected) {
       document.documentElement.append(style)
       window.addEventListener('historyChange', refresh)

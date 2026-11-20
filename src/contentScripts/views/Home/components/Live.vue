@@ -45,6 +45,7 @@ defineExpose({ initData })
       <template #default="{ item: video, index }">
         <VideoCard
           :cover-loading="index < 10 ? 'eager' : 'lazy'"
+          reserve-title-space
           :skeleton="!video.item"
           :video="video.item ? {
             // id: Number(video.item.modules.module_dynamic.major.archive?.aid),

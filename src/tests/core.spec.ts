@@ -1,11 +1,13 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
+import API_FAVORITE from '~/background/messageListeners/api/favorite'
 import API_MOMENT from '~/background/messageListeners/api/moment'
 import { setupStorageMessages } from '~/background/messageListeners/storage'
 import { apiListenerFactory } from '~/background/utils'
 import { useStorageLocal } from '~/composables/useStorageLocal'
-import { parseSettings } from '~/logic/settings'
+import { originalSettings, parseSettings } from '~/logic/settings'
+import { wallpaperSettingsSerializer } from '~/logic/wallpaperStorage'
 import { boundedBackfill } from '~/utils/boundedPagination'
 import { compileFilterKeywords } from '~/utils/filterRules'
 import { createInflightRequests } from '~/utils/inflightRequest'
@@ -67,6 +69,37 @@ it('omits the initial feed cursor and preserves large cursor IDs exactly', async
   }
 })
 
+it('sends native favorite mutations with form data for the correct folder and resource scope', async () => {
+  const transfer = { src_media_id: 41, tar_media_id: 82, mid: '12345678901234567', resources: '12:2,25:12' }
+  const requests = [
+    { query: 'copyFavoriteResources', endpoint: 'copy', params: transfer },
+    { query: 'moveFavoriteResources', endpoint: 'move', params: transfer },
+    { query: 'cleanFavoriteResources', endpoint: 'clean', params: { media_id: 41 } },
+    { query: 'patchDelFavoriteResources', endpoint: 'batch-del', params: { media_id: 41, resources: '12:2' } },
+  ]
+  const fetch = vi.fn(async (_url: string, _options: RequestInit) => new Response(JSON.stringify({ code: 0 })))
+  vi.stubEnv('FIREFOX', '')
+  vi.stubGlobal('fetch', fetch)
+  try {
+    const listener = apiListenerFactory(API_FAVORITE)
+    for (const { query, endpoint, params } of requests) {
+      await expect(listener({ contentScriptQuery: query, ...params, csrf: 'test-token' })).resolves.toEqual({ code: 0 })
+      const [url, options] = fetch.mock.lastCall!
+      expect(url).toBe(`https://api.bilibili.com/x/v3/fav/resource/${endpoint}`)
+      expect(options.method).toBe('post')
+      expect(options.headers).toMatchObject({ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' })
+      expect(options.body).toBeInstanceOf(URLSearchParams)
+      const expected = { ...params, platform: 'web', csrf: 'test-token' }
+      expect(Object.fromEntries(options.body as URLSearchParams))
+        .toEqual(Object.fromEntries(Object.entries(expected).map(([key, value]) => [key, String(value)])))
+    }
+  }
+  finally {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  }
+})
+
 it('stops backfill on empty results and limits a load cycle', async () => {
   const empty = vi.fn(async () => ({ added: 0, done: false }))
   await boundedBackfill({ current: () => true, loadPage: empty, needsMore: async () => true })
@@ -114,14 +147,14 @@ it('shares previews and cancels only after the final consumer leaves', async () 
 
 it('merges simultaneous tab edits and propagates logout', async () => {
   setupStorageMessages()
-  const a = useStorageLocal('settings', ref({ theme: 'auto', blockAds: false }), { debounce: 200 })
-  const b = useStorageLocal('settings', ref({ theme: 'auto', blockAds: false }), { debounce: 200 })
+  const a = useStorageLocal('settings', ref({ theme: 'auto', blockAdsAndPromotions: false }), { debounce: 200 })
+  const b = useStorageLocal('settings', ref({ theme: 'auto', blockAdsAndPromotions: false }), { debounce: 200 })
   await Promise.all([a.ready, b.ready])
   a.value.theme = 'dark'
-  b.value.blockAds = true
+  b.value.blockAdsAndPromotions = true
   await Promise.all([a.flush(), b.flush()])
   await vi.waitFor(() => {
-    expect(a.value).toEqual({ theme: 'dark', blockAds: true })
+    expect(a.value).toEqual({ theme: 'dark', blockAdsAndPromotions: true })
     expect(b.value).toEqual(a.value)
   })
   expect(JSON.parse(extension.values.settings)).toEqual(a.value)
@@ -135,6 +168,30 @@ it('merges simultaneous tab edits and propagates logout', async () => {
   await keyA.flush()
   await vi.waitFor(() => expect(keyB.value).toBe(''))
   expect(extension.values.accessKey).toBeUndefined()
+})
+
+it('inherits enabled ad options and keeps a later explicit choice after reload', async () => {
+  for (const key of ['blockAds', 'blockTopSearchPageAds', 'blockVideoActivities']) {
+    const settings = parseSettings({ [key]: true })
+    expect(settings.blockAdsAndPromotions).toBe(true)
+    expect(settings.blockRelatedVideos).toBe(false)
+    expect(settings).not.toHaveProperty(key)
+  }
+
+  setupStorageMessages()
+  extension.values.settings = JSON.stringify({ blockAds: false, blockVideoActivities: true, blockRelatedVideos: true })
+  const options = { serializer: wallpaperSettingsSerializer, debounce: 200 }
+  const settings = useStorageLocal('settings', ref(structuredClone(originalSettings)), options)
+  await settings.ready
+  expect(settings.value.blockAdsAndPromotions).toBe(true)
+  expect(settings.value.blockRelatedVideos).toBe(true)
+  settings.value.blockAdsAndPromotions = false
+  await settings.flush()
+
+  const reloaded = useStorageLocal('settings', ref(structuredClone(originalSettings)), options)
+  await reloaded.ready
+  expect(reloaded.value.blockAdsAndPromotions).toBe(false)
+  expect(reloaded.value.blockRelatedVideos).toBe(true)
 })
 
 it('rejects invalid imports before replacing settings', () => {

@@ -1,10 +1,5 @@
 .bewly-design.momentsPage {
-  .bili-dyn-home--member {
-    // margin-top: 10px;
-  }
-
   #app .bg {
-    z-index: unset;
     background-size: cover;
     opacity: 0.4;
     height: 100%;
@@ -15,9 +10,9 @@
     background-color: var(--bew-homepage-bg);
   }
 
-  .bili-dyn-home--member {
-    z-index: 1;
-    position: relative;
+  &.bili_dark #app::after {
+    // 原站深色背景只用于装饰，避免拦截动态内容的点击。
+    pointer-events: none;
   }
 
   .reply-box.fixed-box {

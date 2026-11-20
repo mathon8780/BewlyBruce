@@ -93,6 +93,10 @@ img {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
+
+    &.fixed-title-height {
+      block-size: 2lh;
+    }
   }
 
   code {

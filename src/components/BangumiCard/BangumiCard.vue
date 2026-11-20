@@ -10,6 +10,7 @@ defineProps<{
   skeleton?: boolean
   bangumi: Bangumi
   horizontal?: boolean
+  reserveTitleSpace?: boolean
 }>()
 
 interface Bangumi {
@@ -171,6 +172,7 @@ function handleMouseEnter(bangumi: Bangumi) {
           <a
             :href="bangumi.url" target="_blank"
             class="keep-two-lines"
+            :class="{ 'fixed-title-height': reserveTitleSpace }"
             :title="bangumi.title"
           >
             {{ bangumi.title }}

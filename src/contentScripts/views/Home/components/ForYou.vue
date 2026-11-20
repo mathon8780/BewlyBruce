@@ -258,6 +258,7 @@ defineExpose({ initData })
         <template #default="{ item: video, index }">
           <VideoCard
             :cover-loading="index < 10 ? 'eager' : 'lazy'"
+            reserve-title-space
             :skeleton="!video.item"
             type="rcmd"
             :video="video.item ? {
@@ -287,6 +288,7 @@ defineExpose({ initData })
         <template #default="{ item: video, index }">
           <VideoCard
             :cover-loading="index < 10 ? 'eager' : 'lazy'"
+            reserve-title-space
             :skeleton="!video.item"
             type="appRcmd"
             :video="video.item ? {

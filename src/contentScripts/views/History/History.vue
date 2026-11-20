@@ -401,7 +401,7 @@ function handleMouseEnter(item: HistoryItem) {
                     :title="historyItem.show_title ? historyItem.show_title : historyItem.title"
                   >
                     <h3
-                      class="keep-two-lines"
+                      class="keep-two-lines fixed-title-height"
                       overflow="hidden"
                       text="lg overflow-ellipsis"
                     >

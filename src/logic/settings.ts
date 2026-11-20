@@ -28,12 +28,10 @@ export interface Settings {
   searchBarLinkOpenMode: 'currentTab' | 'currentTabIfNotHomepage' | 'newTab'
   closeDrawerWithoutPressingEscAgain: boolean
 
-  blockAds: boolean
+  blockAdsAndPromotions: boolean
   blockAtComments: boolean
-  blockTopSearchPageAds: boolean
 
   blockRelatedVideos: boolean
-  blockVideoActivities: boolean
 
   enableVideoCtrlBarOnVideoCard: boolean
   hoverVideoCardDelayed: boolean
@@ -138,12 +136,10 @@ export const originalSettings: Settings = {
   searchBarLinkOpenMode: 'currentTabIfNotHomepage',
   closeDrawerWithoutPressingEscAgain: false,
 
-  blockAds: false,
+  blockAdsAndPromotions: false,
   blockAtComments: false,
-  blockTopSearchPageAds: false,
 
   blockRelatedVideos: false,
-  blockVideoActivities: false,
 
   enableVideoPreview: true,
   enableVideoCtrlBarOnVideoCard: false,
@@ -248,11 +244,12 @@ const choices: Partial<Record<keyof Settings, readonly string[]>> = {
 export function parseSettings(input: unknown): Settings {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Invalid settings')
+  const suppliedSettings = input as Record<string, unknown>
   const result = structuredClone(originalSettings)
   for (const key of Object.keys(result) as (keyof Settings)[]) {
     if (!Object.hasOwn(input, key))
       continue
-    const supplied = (input as Record<string, unknown>)[key]
+    const supplied = suppliedSettings[key]
     if (key === 'seriesStyles') {
       result.seriesStyles = parseSeriesStyles(supplied)
       continue
@@ -289,6 +286,11 @@ export function parseSettings(input: unknown): Settings {
       throw new Error(`Invalid setting: ${key}`)
     }
     Object.assign(result, { [key]: value })
+  }
+  if (!Object.hasOwn(suppliedSettings, 'blockAdsAndPromotions')) {
+    result.blockAdsAndPromotions = suppliedSettings.blockAds === true
+      || suppliedSettings.blockTopSearchPageAds === true
+      || suppliedSettings.blockVideoActivities === true
   }
   if (!/^#[\da-f]{6}$/i.test(result.themeColor))
     throw new Error('Invalid setting: themeColor')

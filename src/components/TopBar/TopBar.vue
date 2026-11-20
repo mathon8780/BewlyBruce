@@ -174,7 +174,7 @@ function closeAllTopBarPopup(exceptionKey?: keyof typeof popupVisible) {
 }
 
 // Channels
-const channels = setupTopBarItemHoverEvent('channels')
+const channels = setupTopBarItemHoverEvent('channels', { enterDelay: 100, leaveDelay: 120 })
 // Avatar
 const avatar = setupTopBarItemHoverEvent('userPanel')
 // Notifications
@@ -225,10 +225,10 @@ function setupTopBarItemTransformer(key: keyof typeof popupVisible) {
   return transformer
 }
 
-function setupTopBarItemHoverEvent(key: keyof typeof popupVisible) {
+function setupTopBarItemHoverEvent(key: keyof typeof popupVisible, { enterDelay = 320, leaveDelay = 320 } = {}) {
   return useDelayedHover({
-    enterDelay: 320,
-    leaveDelay: 320,
+    enterDelay,
+    leaveDelay,
     beforeEnter: () => closeAllTopBarPopup(key),
     enter: () => {
       popupVisible[key] = true
@@ -457,7 +457,7 @@ defineExpose({
               }"
               grid="~ place-items-center"
               rounded="46px"
-              duration-300
+              duration-150
               w-46px
               h-46px
               transform-gpu
@@ -481,7 +481,7 @@ defineExpose({
                 }"
                 group-hover:fill="!white"
                 group-hover:filter="!none"
-                duration-300
+                duration-150
                 mt--1px
               >
                 <path
@@ -491,7 +491,7 @@ defineExpose({
               </svg>
             </a>
 
-            <Transition name="slide-in">
+            <Transition name="channels-popover">
               <ChannelsPop
                 v-if="popupVisible.channels"
                 class="bew-popover"
@@ -848,6 +848,34 @@ defineExpose({
 .top-bar-enter-from,
 .top-bar-leave-to {
   --uno: "opacity-0 transform -translate-y-full";
+}
+
+.channels-popover-enter-active {
+  transition:
+    opacity 150ms ease-out,
+    translate 150ms ease-out;
+}
+
+.channels-popover-leave-active {
+  transition:
+    opacity 100ms ease-in,
+    translate 100ms ease-in;
+  pointer-events: none;
+}
+
+.channels-popover-enter-from,
+.channels-popover-leave-to {
+  opacity: 0;
+  translate: 0 -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .channels-popover-enter-active,
+  .channels-popover-leave-active,
+  .logo,
+  .logo svg {
+    transition: none;
+  }
 }
 
 .slide-in-enter-active,

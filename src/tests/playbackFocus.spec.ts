@@ -1,3 +1,4 @@
+import { compile } from 'sass'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { App } from 'vue'
 import { createSSRApp, defineComponent, h, nextTick, onMounted, ref } from 'vue'
@@ -14,7 +15,7 @@ vi.mock('~/styles/playbackFocus.css?raw', async () => {
   return { default: readFileSync(`${process.cwd()}/src/styles/playbackFocus.css`, 'utf8') }
 })
 
-const defaults: PlaybackFocusOptions = { blockRelatedVideos: false, blockVideoActivities: false }
+const defaults: PlaybackFocusOptions = { blockRelatedVideos: false, blockAdsAndPromotions: false }
 let focus: ReturnType<typeof startPlaybackFocus> | undefined
 let stopFilter: (() => void) | undefined
 let app: App | undefined
@@ -47,10 +48,9 @@ afterEach(() => {
 
 it('disables recommendations by default and drops the removed collapse settings on import', () => {
   expect(originalSettings.blockRelatedVideos).toBe(false)
-  expect(originalSettings.blockVideoActivities).toBe(false)
-  expect(parseSettings({}).blockVideoActivities).toBe(false)
-  expect(parseSettings({ blockVideoActivities: true }).blockVideoActivities).toBe(true)
-  expect(() => parseSettings({ blockVideoActivities: 'true' })).toThrow('blockVideoActivities')
+  expect(originalSettings.blockAdsAndPromotions).toBe(false)
+  expect(parseSettings({}).blockAdsAndPromotions).toBe(false)
+  expect(() => parseSettings({ blockAdsAndPromotions: 'true' })).toThrow('blockAdsAndPromotions')
   const imported = parseSettings({ collapseVideoComments: true, collapseVideoDescription: true })
   expect(imported).not.toHaveProperty('collapseVideoComments')
   expect(imported).not.toHaveProperty('collapseVideoDescription')
@@ -66,7 +66,7 @@ it('toggles activity items independently, covers late items and preserves other 
   const recommendations = document.querySelector('.recommend-list-v1')!
   const controller = start()
   expect(getComputedStyle(promotion).display).not.toBe('none')
-  controller.update({ ...defaults, blockVideoActivities: true })
+  controller.update({ ...defaults, blockAdsAndPromotions: true })
   expect(getComputedStyle(promotion).display).toBe('none')
   expect(getComputedStyle(recommendations).display).not.toBe('none')
   for (const selector of ['#resource', '#v_desc', '#commentapp', '#unrelated'])
@@ -81,13 +81,51 @@ it('toggles activity items independently, covers late items and preserves other 
   expect(getComputedStyle(promotion).display).not.toBe('none')
   expect(getComputedStyle(late).display).not.toBe('none')
   expect(getComputedStyle(recommendations).display).toBe('none')
-  controller.update({ blockRelatedVideos: true, blockVideoActivities: true })
+  controller.update({ blockRelatedVideos: true, blockAdsAndPromotions: true })
   expect(getComputedStyle(promotion).display).toBe('none')
   expect(getComputedStyle(recommendations).display).toBe('none')
   controller.update(defaults)
   expect(getComputedStyle(promotion).display).not.toBe('none')
   expect(document.documentElement.hasAttribute('data-bewly-hide-activities')).toBe(false)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('uses the merged setting for playback ads and search promotions while keeping ordinary covers', () => {
+  const adStyles = document.head.appendChild(document.createElement('style'))
+  // jsdom 无法匹配首页规则中嵌套的 :has() 和 :not()。
+  const cssLines = compile('src/styles/blockAds.scss').css.split('\n')
+  adStyles.textContent = cssLines.filter(line => !line.includes('.feed-card:has(')).join('\n')
+  document.body.innerHTML = `
+    <div class="video-card-ad-small"><div class="vcd">广告卡片</div></div>
+    <div class="ad-report ad-floor-exp"><div class="ad-floor-cover b-img"><img class="b-img__inner"></div></div>
+    <div class="ad-report strip-ad"><div class="cover b-img"><img class="b-img__inner"></div></div>
+    <div id="ordinary-card" class="vcd"><div class="cover b-img"><img class="b-img__inner"></div></div>
+    <div class="activity-game-list">搜索顶部活动卡片</div>
+  `
+  const ads = [...document.querySelectorAll('.video-card-ad-small, .ad-floor-exp, .strip-ad')]
+  const hidden = () => ads.map(ad => getComputedStyle(ad).display === 'none')
+  const searchPromotion = document.querySelector('.activity-game-list')!
+  const controller = start({ blockRelatedVideos: true })
+  try {
+    expect(hidden()).toEqual([false, false, false])
+    controller.update({ ...defaults, blockAdsAndPromotions: true })
+    expect(hidden()).toEqual([true, true, true])
+    for (const selector of ['#ordinary-card', '#ordinary-card .cover'])
+      expect(getComputedStyle(document.querySelector(selector)!).display).not.toBe('none')
+    expect(getComputedStyle(searchPromotion).display).not.toBe('none')
+
+    navigate('https://search.bilibili.com/all')
+    window.dispatchEvent(new Event('historyChange'))
+    expect(getComputedStyle(searchPromotion).display).toBe('none')
+    expect(document.documentElement.hasAttribute('data-bewly-hide-activities')).toBe(false)
+
+    controller.update(defaults)
+    expect(hidden()).toEqual([false, false, false])
+    expect(getComputedStyle(searchPromotion).display).not.toBe('none')
+  }
+  finally {
+    adStyles.remove()
+  }
 })
 
 describe.each([
@@ -186,7 +224,7 @@ it('hides late recommendations without hiding authors, parts, collections or epi
 })
 
 it('updates recommendation scope after SPA navigation and disposes all timers', async () => {
-  const controller = start({ blockRelatedVideos: true, blockVideoActivities: true })
+  const controller = start({ blockRelatedVideos: true, blockAdsAndPromotions: true })
   expect(document.documentElement.hasAttribute('data-bewly-hide-recommendations')).toBe(true)
   expect(document.documentElement.hasAttribute('data-bewly-hide-activities')).toBe(true)
   navigate('/')

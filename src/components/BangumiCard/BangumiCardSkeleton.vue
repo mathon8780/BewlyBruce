@@ -18,11 +18,10 @@ defineProps<{
       :style="{ width: horizontal ? '170px' : '100%' }"
     />
     <div w-full>
-      <p
-        w-full h-5 mt-2 mb-3 my-4
-        bg="$bew-skeleton"
-        rounded-4px
-      />
+      <div grid gap-2 mt-2 mb-3 my-4>
+        <div w-full h-5 bg="$bew-skeleton" rounded-4px />
+        <div w="3/4" h-5 bg="$bew-skeleton" rounded-4px />
+      </div>
       <div text="$bew-skeleton" mb-10 flex items-center rounded-4px>
         <div
           text="transparent" bg="$bew-skeleton" p="x-3 y-1" mr-2 h-24px

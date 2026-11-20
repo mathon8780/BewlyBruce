@@ -19,6 +19,7 @@ const props = withDefaults(
     showFooter?: boolean
     centerFooter?: boolean
     loading?: boolean
+    confirmDisabled?: boolean
     preventCloseWhenLoading?: boolean
   }>(),
   {
@@ -34,8 +35,7 @@ useModalFocus(dialogPanel)
 
 onKeyStroke('Enter', (e: KeyboardEvent) => {
   e.preventDefault()
-  if (!props.loading)
-    handleConfirm()
+  handleConfirm()
 })
 onKeyStroke('Escape', (e: KeyboardEvent) => {
   e.preventDefault()
@@ -97,12 +97,11 @@ function handleClose() {
 }
 
 function handleConfirm() {
+  if (props.loading || props.confirmDisabled)
+    return
+
   emit('confirm')
-  if (!props.loading) {
-    nextTick(() => {
-      handleClose()
-    })
-  }
+  nextTick(handleClose)
 }
 </script>
 
@@ -244,7 +243,7 @@ function handleConfirm() {
                 </span>
               </div>
             </Button>
-            <Button type="primary" @click="handleConfirm">
+            <Button type="primary" :disabled="loading || confirmDisabled" @click="handleConfirm">
               <div>
                 {{ $t('common.operation.confirm') }}
                 <span

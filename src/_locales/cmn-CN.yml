@@ -61,8 +61,6 @@ settings:
   group_playback_page: 播放页面
   block_related_videos: 屏蔽相关推荐
   block_related_videos_desc: 隐藏播放页及播放器中的推荐内容，保留分 P、合集和选集。
-  block_video_activities: 屏蔽活动推广
-  block_video_activities_desc: 隐藏视频简介与评论区之间的活动推广条目，保留其他资源。
   series_always_visible: 详情始终显示，无需悬停或点击。
   series_behavior_hint: 实际卡片按此设置显示详情；预览始终呈现展开结果。
   series_behavior: 显示行为
@@ -182,11 +180,8 @@ settings:
   search_bar_link_opening_behavior: 搜索栏链接打开行为
   close_drawer_without_pressing_esc_again: 关闭抽屉时不用再次按 <kbd>Esc</kbd> 关闭
 
-  block_ads: 屏蔽广告
-  block_top_search_page_ads: 屏蔽 Bilibili 搜索页上方的广告
-  block_top_search_page_ads_desc: >
-    有时候，搜索结果上方的广告实际上是年末总结或年度报告。
-    如果你不想这些内容被误删除，请禁用此选项。
+  block_ads_and_promotions: 屏蔽广告和推广
+  block_ads_and_promotions_desc: 隐藏站内广告、搜索结果顶部推广和播放页推广。搜索结果顶部的年度报告也会随该区域隐藏。
 
   enable_video_preview: 启用视频预览功能（如果可以的话）
   enable_video_ctrl_bar_on_video_card: 在视频卡片上显示视频控制栏
@@ -518,10 +513,24 @@ history:
     你确定要开启观看历史吗？
 
 favorites:
+  folders: 收藏夹
+  search: 搜索当前收藏夹
+  batch_manage: 批量管理
+  selected_count: 已选 {count} 项
+  select_loaded: 全选已加载
+  deselect_loaded: 取消全选
+  copy_to: 复制到
+  move_to: 移动到
+  target_folder: 选择目标收藏夹
+  copy_success: 已复制 {count} 项
+  move_success: 已移动 {count} 项
+  clean_invalid: 清理失效内容
+  clean_confirm: 确定清理「{folder}」中的全部失效内容吗？此操作无法撤销。
+  clean_success: 已清理当前收藏夹的失效内容
+  clean_failed: 清理失效内容失败，请重试。
   unfavorite: 取消收藏
-  unfavorite_confirm: |-
-    要取消收藏选中的视频吗？
-    该操作无法撤销，你确定要取消收藏选中的视频吗？
+  batch_failed: 已完成 {completed}/{count} 项，请重试剩余项目。
+  unfavorite_confirm: 确定取消收藏这 {count} 项吗？此操作无法撤销。
 
 watch_later:
   title: 稍后再看

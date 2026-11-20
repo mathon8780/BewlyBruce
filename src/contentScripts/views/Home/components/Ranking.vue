@@ -203,6 +203,7 @@ function getRankingPgc() {
         <VideoCard
           v-for="(video, index) in videoList"
           :key="video.aid"
+          reserve-title-space
           :video="{
             id: Number(video.aid),
             duration: video.duration,
@@ -230,6 +231,7 @@ function getRankingPgc() {
         <BangumiCard
           v-for="pgc in PgcList"
           :key="pgc.url"
+          reserve-title-space
           :bangumi="{
             url: pgc.url,
             cover: pgc.cover,

@@ -33,6 +33,7 @@ interface Props {
   coverLoading?: 'eager' | 'lazy'
   skeleton?: boolean
   video?: Video
+  reserveTitleSpace?: boolean
   /** rcmd: recommend video; appRcmd: app recommend video; bangumi: bangumi video; common: common video */
   type?: 'rcmd' | 'appRcmd' | 'bangumi' | 'common'
   showWatcherLater?: boolean
@@ -494,7 +495,12 @@ provide('getVideoType', () => props.type!)
             />
             <div class="group/desc" flex="~ col" w="full" align="items-start">
               <div flex="~ gap-1 justify-between items-start" w="full" pos="relative">
-                <h3 class="keep-two-lines" text="overflow-ellipsis $bew-text-1 lg" cursor="pointer">
+                <h3
+                  class="keep-two-lines"
+                  :class="{ 'fixed-title-height': reserveTitleSpace }"
+                  text="overflow-ellipsis $bew-text-1 lg"
+                  cursor="pointer"
+                >
                   <a :href="videoUrl" target="_blank" :title="video.title">
                     {{ video.title }}
                   </a>

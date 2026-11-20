@@ -210,7 +210,7 @@ function handleMouseEnter(item: VideoItem) {
                 <div flex justify-between w-full h-full>
                   <div flex="~ col">
                     <a
-                      class="keep-two-lines"
+                      class="keep-two-lines fixed-title-height"
                       overflow="hidden"
                       un-text="lg overflow-ellipsis"
                       @click.stop.prevent="handleLinkClick(`https://www.bilibili.com/list/watchlater?bvid=${item.bvid}`)"

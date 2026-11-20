@@ -162,18 +162,6 @@ watch(
       </SettingsItem>
     </SettingsItemGroup>
 
-    <SettingsItemGroup>
-      <SettingsItem :title="$t('settings.block_ads')">
-        <Radio v-model="settings.blockAds" />
-      </SettingsItem>
-      <SettingsItem
-        :title="$t('settings.block_top_search_page_ads')"
-        :desc="$t('settings.block_top_search_page_ads_desc')"
-      >
-        <Radio v-model="settings.blockTopSearchPageAds" />
-      </SettingsItem>
-    </SettingsItemGroup>
-
     <SettingsItemGroup :title="$t('settings.group_video_card')">
       <SettingsItem :title="$t('settings.enable_video_preview')">
         <Radio v-model="settings.enableVideoPreview" />
@@ -191,11 +179,11 @@ watch(
       <SettingsItem :title="$t('settings.block_related_videos')" :desc="$t('settings.block_related_videos_desc')">
         <Radio v-model="settings.blockRelatedVideos" />
       </SettingsItem>
-      <SettingsItem :title="$t('settings.block_video_activities')" :desc="$t('settings.block_video_activities_desc')">
-        <Radio v-model="settings.blockVideoActivities" />
-      </SettingsItem>
     </SettingsItemGroup>
     <SettingsItemGroup :title="$t('settings.group_blocking')">
+      <SettingsItem :title="$t('settings.block_ads_and_promotions')" :desc="$t('settings.block_ads_and_promotions_desc')">
+        <Radio v-model="settings.blockAdsAndPromotions" />
+      </SettingsItem>
       <SettingsItem :title="$t('settings.block_at_comments')" :desc="$t('settings.block_at_comments_desc')">
         <Radio v-model="settings.blockAtComments" />
       </SettingsItem>

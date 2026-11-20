@@ -180,36 +180,6 @@ export function setupNecessarySettingsWatchers() {
   )
 
   watch(
-    () => settings.value.blockAds,
-    () => {
-      // Do not use the "ads" keyword. AdGuard, AdBlock, and some ad-blocking extensions will
-      // detect and remove it when the class name contains "ads"
-      if (settings.value.blockAds)
-        document.documentElement.classList.add('block-useless-contents')
-      else document.documentElement.classList.remove('block-useless-contents')
-    },
-    { immediate: true },
-  )
-
-  /**
-   * 搜尋結果的上方的廣告，但有時是年末總結、年度報告這些
-   */
-  const blockTopSearchPageAdsStyleEl = injectCSS(`
-    .activity-game-list {
-      display: none !important;
-    }
-  `)
-  watch(
-    () => settings.value.blockTopSearchPageAds,
-    () => {
-      if (settings.value.blockTopSearchPageAds)
-        document.documentElement.appendChild(blockTopSearchPageAdsStyleEl)
-      else document.documentElement.removeChild(blockTopSearchPageAdsStyleEl)
-    },
-    { immediate: true },
-  )
-
-  watch(
     () => settings.value.themeColor,
     () => {
       const bewlyElement = document.querySelector('#bewly') as HTMLElement

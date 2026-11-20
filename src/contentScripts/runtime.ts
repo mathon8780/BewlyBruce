@@ -49,7 +49,7 @@ export async function start() {
   const disposeDarkTheme = initializeDarkTheme()
   const playbackFocus = startPlaybackFocus(settings.value)
   const stopPlaybackWatch = watch(
-    () => [settings.value.blockRelatedVideos, settings.value.blockVideoActivities],
+    () => [settings.value.blockRelatedVideos, settings.value.blockAdsAndPromotions],
     () => playbackFocus.update(settings.value),
   )
   const stopCommentWatch = watch(

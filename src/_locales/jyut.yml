@@ -61,8 +61,6 @@ settings:
   group_playback_page: 播放頁面
   block_related_videos: 隱藏相關推薦
   block_related_videos_desc: 隱藏播放頁同播放器入面嘅推薦內容，保留分 P、合集同選集。
-  block_video_activities: 隱藏活動推廣
-  block_video_activities_desc: 隱藏影片簡介同留言區之間嘅活動推廣項目，保留其他資源。
   series_always_visible: 詳情一直顯示，唔使懸停或者撳。
   series_behavior_hint: 實際卡片跟呢個設定顯示詳情；預覽一直顯示展開結果。
   series_behavior: 顯示行為
@@ -181,10 +179,8 @@ settings:
   search_bar_link_opening_behavior: 搜尋欄連結開啓行爲
   close_drawer_without_pressing_esc_again: 閂櫃桶嗰陣唔使再撳多次 <kbd>Esc</kbd>
 
-  block_ads: 封鎖廣告
-  block_top_search_page_ads: 封鎖 Bilibili 搵嘢頁上方的廣告
-  block_top_search_page_ads_desc: >
-    有時喺搵嘢結果上高嘅廣告，其實係年結報告抑或週年報告嚟㗎。若然你唔想佢哋唔覺意俾人刪咗，就請你閂咗呢個選項啦。
+  block_ads_and_promotions: 封鎖廣告同推廣
+  block_ads_and_promotions_desc: 收埋站內廣告、搵嘢結果頂頭嘅推廣同播放頁嘅推廣。搵嘢結果頂頭嘅年度報告亦會跟住收埋。
 
   enable_video_preview: 使用影片預覽功能（若然得嘅話）
   enable_video_ctrl_bar_on_video_card: 喺影片卡片上顯示影片控制欄
@@ -517,10 +513,24 @@ history:
     你確定要開返收睇記錄？
 
 favorites:
+  folders: 收藏夾
+  search: 喺呢個收藏夾搵
+  batch_manage: 批量管理
+  selected_count: 揀咗 {count} 項
+  select_loaded: 揀晒已載入項目
+  deselect_loaded: 取消全選
+  copy_to: 複製去
+  move_to: 搬去
+  target_folder: 揀目標收藏夾
+  copy_success: 複製咗 {count} 項
+  move_success: 搬咗 {count} 項
+  clean_invalid: 清理失效內容
+  clean_confirm: 確定清走「{folder}」入面所有失效內容？噉做冇得返轉頭㗎。
+  clean_success: 已經清走呢個收藏夾嘅失效內容
+  clean_failed: 清理失效內容失敗，請再試。
   unfavorite: 唔愛喇
-  unfavorite_confirm: |-
-    係咪要剷走你揀過啲片呀？
-    噉做冇得返轉頭噃，你確定要剷走你揀過啲片？
+  batch_failed: 做完 {completed}/{count} 項，其餘項目請再試。
+  unfavorite_confirm: 確定要取消收藏呢 {count} 項？噉做冇得返轉頭㗎。
 
 watch_later:
   title: 陣間至睇

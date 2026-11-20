@@ -54,6 +54,7 @@ defineProps<{
       <div w="[calc(100%-30px)]">
         <div grid gap-2>
           <div w-full h-5 bg="$bew-skeleton" rounded-4px />
+          <div w="3/4" h-5 bg="$bew-skeleton" rounded-4px />
         </div>
 
         <div mt-4 flex="~ col gap-2">
