@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import { onKeyStroke, useEventListener } from '@vueuse/core'
+import { useEventListener } from '@vueuse/core'
 
 import { DRAWER_VIDEO_ENTER_PAGE_FULL, DRAWER_VIDEO_EXIT_PAGE_FULL } from '~/constants/globalEvents'
 import { settings } from '~/logic'
-import { isHomePage, isInIframe } from '~/utils/main'
-
-// TODO: support shortcuts like `Ctrl+Alt+T` to open in new tab, `Esc` to close
 
 const props = defineProps<{
   url: string
@@ -16,173 +13,98 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const openerUrl = location.href
 const show = ref(false)
-const headerShow = ref(false)
+const headerShow = ref(true)
 const iframeRef = ref<HTMLIFrameElement | null>(null)
-const currentUrl = ref<string>(props.url)
-const showIframe = ref<boolean>(false)
-const delayCloseTimer = ref<NodeJS.Timeout | null>(null)
-const removeTopBarClassInjected = ref<boolean>(false)
-
-useEventListener(window, 'popstate', updateIframeUrl)
-nextTick(() => {
-  useEventListener(iframeRef.value?.contentWindow, 'historyChange', updateCurrentUrl)
-  useEventListener(iframeRef.value?.contentWindow, 'popstate', updateCurrentUrl)
-
-  useEventListener(iframeRef.value?.contentWindow, 'DOMContentLoaded', () => {
-    if (headerShow.value) {
-      iframeRef.value?.contentWindow?.document.documentElement.classList.add('remove-top-bar-without-placeholder')
-      removeTopBarClassInjected.value = true
-    }
-    else {
-      iframeRef.value?.contentWindow?.document.documentElement.classList.remove('remove-top-bar-without-placeholder')
-      removeTopBarClassInjected.value = false
-    }
-  })
-})
+const currentUrl = ref(props.url)
+const showIframe = ref(false)
+const removeTopBarClassInjected = ref(false)
+const isEscPressed = ref(false)
+let frameListeners: AbortController | undefined
+let escTimer: ReturnType<typeof setTimeout>
+let closeTimer: ReturnType<typeof setTimeout>
 
 onMounted(() => {
   history.pushState(null, '', props.url)
   show.value = true
-  headerShow.value = true
-  nextTick(() => {
-    iframeRef.value?.focus()
-  })
 })
 
-onBeforeUnmount(() => {
-  releaseIframeResources()
-})
-
-onUnmounted(() => {
-  history.replaceState(null, '', 'https://www.bilibili.com')
-})
-
-function updateCurrentUrl() {
-  if (iframeRef.value?.contentWindow) {
-    try {
-      currentUrl.value = iframeRef.value.contentWindow.location.href.replace(/\/$/, '')
-      history.pushState(null, '', currentUrl.value.replace(/\/$/, ''))
-    }
-    catch (error) {
-      console.error('Unable to access iframe URL:', error)
-    }
-  }
+function syncFrameUrl() {
+  const url = iframeRef.value?.contentDocument?.URL
+  if (!url || url === 'about:blank')
+    return
+  currentUrl.value = url
+  // 子页面导航已进入浏览器历史，只同步地址栏。
+  if (location.href !== url)
+    history.replaceState(history.state, '', url)
 }
 
-async function updateIframeUrl() {
-  if (isHomePage()) {
-    await handleClose()
+function onFrameLoad() {
+  const frame = iframeRef.value!
+  frameListeners?.abort()
+  showIframe.value = true
+  if (!frame.contentDocument || !frame.contentWindow)
+    return
+  syncFrameUrl()
+  frameListeners = new AbortController()
+  const options = { signal: frameListeners.signal }
+  for (const event of ['historyChange', 'popstate', 'hashchange'])
+    frame.contentWindow.addEventListener(event, syncFrameUrl, options)
+  frame.contentWindow.addEventListener('keydown', onFrameKey, options)
+  frame.contentDocument.documentElement.classList.add('remove-top-bar-without-placeholder')
+  removeTopBarClassInjected.value = true
+  frame.focus()
+}
+
+function onFrameKey(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !headerShow.value || event.defaultPrevented || event.repeat)
+    return
+  if (settings.value.closeDrawerWithoutPressingEscAgain || isEscPressed.value) {
+    handleClose()
     return
   }
-  await nextTick()
-
-  if (iframeRef.value?.contentWindow) {
-    iframeRef.value.contentWindow.location.replace(location.href.replace(/\/$/, ''))
-  }
+  isEscPressed.value = true
+  escTimer = setTimeout(() => {
+    isEscPressed.value = false
+  }, 1300)
 }
 
-async function handleClose() {
-  if (delayCloseTimer.value) {
-    clearTimeout(delayCloseTimer.value)
-  }
-  await releaseIframeResources()
+useEventListener(window, 'popstate', () => {
+  if (location.href === openerUrl)
+    handleClose()
+})
+
+useEventListener(window, 'message', ({ data, origin, source }) => {
+  if (source !== iframeRef.value?.contentWindow || origin !== location.origin)
+    return
+  if (data === DRAWER_VIDEO_ENTER_PAGE_FULL)
+    headerShow.value = false
+  else if (data === DRAWER_VIDEO_EXIT_PAGE_FULL)
+    headerShow.value = true
+})
+
+function handleClose() {
+  if (!show.value)
+    return
+  frameListeners?.abort()
   show.value = false
   headerShow.value = false
-  delayCloseTimer.value = setTimeout(() => {
-    emit('close')
-  }, 300)
+  closeTimer = setTimeout(() => emit('close'), 300)
 }
 
-async function releaseIframeResources() {
-  // Clear iframe content
-  currentUrl.value = 'about:blank'
-  /**
-   * eg: When use 'iframeRef.value?.contentWindow?.document' of t.bilibili.com iframe on bilibili.com, there may be cross domain issues
-   * set the src to 'about:blank' to avoid this issue, it also can release the memory
-   */
-  if (iframeRef.value) {
-    iframeRef.value.src = 'about:blank'
-  }
-  await nextTick()
-  iframeRef.value?.contentWindow?.close()
-
-  // Remove iframe from the DOM
-  iframeRef.value?.parentNode?.removeChild(iframeRef.value)
-  await nextTick()
-
-  // Nullify the reference
-  iframeRef.value = null
-}
+onBeforeUnmount(() => {
+  frameListeners?.abort()
+  clearTimeout(escTimer)
+  clearTimeout(closeTimer)
+  if (location.href === currentUrl.value || location.href === new URL(props.url, openerUrl).href)
+    history.replaceState(history.state, '', openerUrl)
+})
 
 function handleOpenInNewTab() {
-  if (iframeRef.value) {
-    window.open(iframeRef.value.contentWindow?.location.href.replace(/\/$/, ''), '_blank')
-    handleClose()
-  }
+  window.open(currentUrl.value, '_blank')
+  handleClose()
 }
-
-const isEscPressed = ref<boolean>(false)
-const escPressedTimer = ref<NodeJS.Timeout | null>(null)
-const disableEscPress = ref<boolean>(false)
-
-nextTick(() => {
-  onKeyStroke(
-    'Escape',
-    (e: KeyboardEvent) => {
-      e.preventDefault()
-      if (settings.value.closeDrawerWithoutPressingEscAgain) {
-        clearTimeout(escPressedTimer.value!)
-        handleClose()
-        return
-      }
-      if (disableEscPress.value)
-        return
-      if (isEscPressed.value) {
-        handleClose()
-      }
-      else {
-        isEscPressed.value = true
-        if (escPressedTimer.value) {
-          clearTimeout(escPressedTimer.value)
-        }
-        escPressedTimer.value = setTimeout(() => {
-          isEscPressed.value = false
-        }, 1300)
-      }
-    },
-    { target: iframeRef.value?.contentWindow },
-  )
-})
-
-watchEffect(() => {
-  if (isInIframe())
-    return null
-
-  useEventListener(window, 'message', ({ data, origin, source }) => {
-    if (source !== iframeRef.value?.contentWindow || origin !== new URL(currentUrl.value).origin)
-      return
-    switch (data) {
-      case DRAWER_VIDEO_ENTER_PAGE_FULL:
-        headerShow.value = false
-        disableEscPress.value = true
-        break
-      case DRAWER_VIDEO_EXIT_PAGE_FULL:
-        headerShow.value = true
-        disableEscPress.value = false
-        break
-    }
-  })
-})
-
-// const keys = useMagicKeys()
-// const ctrlAltT = keys['Ctrl+Alt+T']
-
-// watch(() => ctrlAltT, (value) => {
-//   if (value) {
-//     handleOpenInNewTab()
-//   }
-// })
 </script>
 
 <template>
@@ -255,6 +177,7 @@ watchEffect(() => {
       >
         <Transition name="fade">
           <iframe
+            v-if="show"
             v-show="showIframe"
             ref="iframeRef"
             :src="props.url"
@@ -267,7 +190,7 @@ watchEffect(() => {
             pos="relative left-0"
             w-full
             h-full
-            @load="showIframe = true"
+            @load="onFrameLoad"
           />
         </Transition>
       </div>

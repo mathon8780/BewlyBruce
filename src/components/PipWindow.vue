@@ -1,6 +1,4 @@
 <script setup lang="ts">
-// import { onKeyStroke } from '@vueuse/core'
-
 import { useDark } from '~/composables/useDark'
 
 const props = defineProps<{
@@ -8,110 +6,52 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'close'): void
+  (e: 'close' | 'blocked'): void
 }>()
 
-const pipWindowRef = ref<HTMLElement | null>(null)
-const pipWindowEl = ref<any | null>(null)
-const iframeRef = ref<HTMLIFrameElement | null>(null)
-const currentUrl = ref<string>(props.url)
+const pipWindow = shallowRef<Window>()
 const { isDark } = useDark()
+let mounted = true
 
-onMounted(() => {
-  openPipWindow()
+onMounted(async () => {
+  const width = window.innerWidth * 0.8
+  const height = window.innerHeight * 0.8
+  const api = (window as Window & {
+    documentPictureInPicture?: { requestWindow: (options: object) => Promise<Window> }
+  }).documentPictureInPicture
+  const popup = await api?.requestWindow({ width, height, disallowReturnToOpener: true }).catch(() => undefined)
+  if (!mounted) {
+    popup?.close()
+    return
+  }
+  if (popup) {
+    popup.document.body.style.margin = '0'
+    popup.document.documentElement.classList.toggle('dark', isDark.value)
+    popup.addEventListener('pagehide', () => emit('close'), { once: true })
+    pipWindow.value = popup
+    return
+  }
+  const left = (screen.width - width) / 2
+  const top = (screen.height - height) / 2
+  if (window.open(props.url, '_blank', `popup,width=${width},height=${height},left=${left},top=${top}`))
+    emit('close')
+  else
+    emit('blocked')
 })
 
-async function openPipWindow() {
-  // https://developer.chrome.com/docs/web-platform/document-picture-in-picture
-  if ('documentPictureInPicture' in window) {
-    // The Document Picture-in-Picture API is supported.
-    const width = window.innerWidth * 0.8
-    const height = window.innerHeight * 0.8
-    pipWindowEl.value = await (window as any).documentPictureInPicture.requestWindow({
-      disallowReturnToOpener: true,
-      width,
-      height,
-    })
-    pipWindowEl.value.document.body.style.padding = '0'
-    pipWindowEl.value.document.body.style.margin = '0'
-
-    if (isDark.value) {
-      // 爲 documentElement 添加主題色防止關閉時顏色白色切換
-      pipWindowEl.value.document.documentElement.style.background = 'var(--bew-bg)'
-      pipWindowEl.value.document.documentElement.classList.add('dark')
-    }
-
-    pipWindowEl.value.document.body.append(pipWindowRef.value)
-
-    pipWindowEl.value.addEventListener('pagehide', () => {
-      handleClose()
-    })
-  }
-  else {
-    const width = window.innerWidth * 0.8
-    const height = window.innerHeight * 0.8
-    const left = (screen.width / 2) - (width / 2)
-    const top = (screen.height / 2) - (height / 2)
-    window.open(currentUrl.value, '', `width=${width}px,height=${height}px,left=${left}px,top=${top}px,toolbar=no,location=no,directories=no,menubar=no,scrollbars=yes,resizable=yes,status=no`)
-    handleClose()
-  }
-}
-
-function handleOpenInNewTab() {
-  window.open(currentUrl.value, '_blank')
-  handleClose()
-}
-
-async function handleClose() {
-  await releaseIframeResources()
-  await nextTick()
-  if (pipWindowEl.value)
-    pipWindowEl.value.close()
-  await nextTick()
+function openVideoTab() {
+  window.open(props.url, '_blank')
   emit('close')
 }
 
-async function releaseIframeResources() {
-  // Clear iframe content
-  currentUrl.value = 'about:blank'
-  iframeRef.value?.contentWindow?.document.write('')
-  await nextTick()
-  iframeRef.value?.contentWindow?.close()
-
-  // Remove iframe from the DOM
-  iframeRef.value?.parentNode?.removeChild(iframeRef.value)
-  await nextTick()
-
-  // Nullify the reference
-  iframeRef.value = null
-}
-
-// TODO: figure out why the `esc` key doesn't work in here
-
-const isEscPressed = ref<boolean>(false)
-// const escPressedTimer = ref<NodeJS.Timeout | null>(null)
-
-// nextTick(() => {
-//   onKeyStroke('Escape', (e: KeyboardEvent) => {
-//     e.preventDefault()
-//     if (isEscPressed.value) {
-//       handleClose()
-//     }
-//     else {
-//       isEscPressed.value = true
-//       if (escPressedTimer.value) {
-//         clearTimeout(escPressedTimer.value)
-//       }
-//       escPressedTimer.value = setTimeout(() => {
-//         isEscPressed.value = false
-//       }, 1300)
-//     }
-//   }, { target: iframeRef.value?.contentWindow })
-// })
+onBeforeUnmount(() => {
+  mounted = false
+  pipWindow.value?.close()
+})
 </script>
 
 <template>
-  <div ref="pipWindowRef">
+  <Teleport v-if="pipWindow" :to="pipWindow.document.body">
     <div pos="absolute top-0 left-0" w-full h-full>
       <div
         pos="relative top-0" z-1 flex="~ items-center justify-end gap-2"
@@ -124,7 +64,7 @@ const isEscPressed = ref<boolean>(false)
               --b-button-color-hover: var(--bew-elevated-solid-hover);
             "
           pointer-events-auto
-          @click="handleOpenInNewTab"
+          @click="openVideoTab"
         >
           <template #left>
             <i i-mingcute:external-link-line />
@@ -135,14 +75,13 @@ const isEscPressed = ref<boolean>(false)
             </div> -->
         </Button>
         <Button
-          v-if="!isEscPressed"
           style="
             --b-button-color: var(--bew-elevated-solid);
             --b-button-color-hover: var(--bew-elevated-solid-hover);
           "
           pointer-events-auto
           mr-8
-          @click="handleClose"
+          @click="emit('close')"
         >
           <template #left>
             <i i-mingcute:close-line />
@@ -150,25 +89,13 @@ const isEscPressed = ref<boolean>(false)
           {{ $t('iframe_drawer.close') }}
           <!-- <kbd>Esc</kbd> -->
         </Button>
-        <Button
-          v-else
-          type="error"
-          @click="handleClose"
-        >
-          <template #left>
-            <i i-mingcute:close-line />
-          </template>
-          {{ $t('iframe_drawer.press_esc_again_to_close') }}
-          <!-- <kbd>Esc</kbd> -->
-        </Button>
       </div>
       <iframe
-        ref="iframeRef"
         :src="url" frameborder="0"
         w-full h-full p-0
         pos="absolute top-0 left-0"
         bg="$bew-bg"
       />
     </div>
-  </div>
+  </Teleport>
 </template>

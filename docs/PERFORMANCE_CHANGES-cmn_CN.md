@@ -13,7 +13,8 @@
 | 其他分页 | 关注、热门、直播、订阅剧集和收藏共用有界分页；历史分页也处理刷新、终页和缓冲数据；删除后先补入缓冲，避免缓冲累积 | `composables/useWindowedFeed.ts`、对应页面组件 |
 | 列表渲染 | 虚拟化上述列表、历史及稍后再看；按行测量高度，布局变化时重测；卡片操作状态随数据键保留和释放 | `components/VirtualFeed.vue`、`VirtualFeedItem.vue`、`composables/useVideoCardState.ts` |
 | 数据保留 | 分页列表每个浏览窗口最多保留 600 项，加当前响应溢出的缓冲；通过“继续浏览”释放上一窗口并保留 API 游标 | 推荐、关注、热门、直播、订阅剧集、历史、收藏页面 |
-| 媒体 | 首批封面优先，其余懒加载；预览合并进行中请求，10 秒超时，忽略失活/更换视频后的结果；清理悬停延迟 | `components/VideoCard/VideoCard.vue`、`preview.ts`、`utils/inflightRequest.ts` |
+| 播放页 | 地址变化后通知抽屉、作者分组入口和推荐过滤；评论过滤只在评论节点内观察文本变化 | `inject/index.js`、`IframeDrawer.vue`、`contentScripts/commentFilter.ts` |
+| 媒体 | 首批封面优先，其余懒加载；预览合并进行中请求，10 秒超时，忽略失活/更换视频后的结果；媒体加载失败时恢复封面，下次悬停重新请求 | `components/VideoCard/VideoCard.vue`、`preview.ts`、`utils/inflightRequest.ts` |
 | 设置窗口 | 定位工厂只创建一次；resize 调用更新方法，观察器随组件作用域释放 | `components/Settings/Settings.vue`、`utils/transformer.ts` |
 | 播放器 iframe | 只在播放页查找全屏按钮；立即查询、10 秒总截止时间以及 abort 清理 | `contentScripts/views/App.vue`、`utils/main.ts` |
 | 加载和样式 | 轻量经典引导脚本先判断页面/frame；支持的文档再加载 ES 模块；组件、页面样式实际拆分，并将本扩展样式同步到自身 Shadow DOM | `contentScripts/index.ts`、`runtime.ts`、`extensionStyles.ts`、`pageScope.ts`、`components/index.ts`、`vite.config.content.ts`、`manifest.ts` |

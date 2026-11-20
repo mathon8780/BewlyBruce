@@ -9,42 +9,30 @@ browser.runtime.onInstalled.addListener(async () => {
   console.log('Extension installed')
 })
 
-function isExtensionUri(url: string) {
-  return new URL(url).origin === new URL(browser.runtime.getURL('')).origin
-}
-
 // eslint-disable-next-line node/prefer-global/process
 if (process.env.FIREFOX) {
   browser.webRequest.onBeforeSendHeaders.addListener(
-    async (details: any) => {
-      const requestHeaders: browser.WebRequest.HttpHeaders = []
-      if (details.documentUrl) {
-        const url = new URL(details.documentUrl)
-        const extensionUri = isExtensionUri(details.documentUrl)
-        details.requestHeaders = details.requestHeaders || []
-        for (let i = 0; i < details.requestHeaders.length; i++) {
-          if (
-            details.requestHeaders[i].name.toLowerCase() === 'origin'
-            || details.requestHeaders[i].name.toLowerCase() === 'referer'
-          ) {
-            requestHeaders.push({
-              name: details.requestHeaders[i].name,
-              value: extensionUri ? 'https://www.bilibili.com' : url.origin,
-            })
-          }
-          else {
-            requestHeaders.push(details.requestHeaders[i])
-          }
+    ({ documentUrl, originUrl, requestHeaders = [] }) => {
+      const source = documentUrl || originUrl
+      if (!source?.startsWith(browser.runtime.getURL('')))
+        return
 
-          if (details.requestHeaders[i].name === 'firefox-multi-account-cookie') {
-            requestHeaders.push({ name: 'cookie', value: details.requestHeaders[i].value })
-          }
+      const containerCookie = requestHeaders.find(header => header.name.toLowerCase() === 'firefox-multi-account-cookie')
+      const headers = requestHeaders.filter(header => !containerCookie || header.name.toLowerCase() !== 'cookie')
+      for (const header of headers) {
+        switch (header.name.toLowerCase()) {
+          case 'origin':
+          case 'referer':
+            header.value = 'https://www.bilibili.com'
+            break
+          case 'firefox-multi-account-cookie':
+            header.name = 'Cookie'
+            break
         }
-
-        return { ...details, requestHeaders }
       }
+      return { requestHeaders: headers }
     },
-    { urls: ['*://*.bilibili.com/*'] },
+    { urls: ['*://*.bilibili.com/*'], types: ['xmlhttprequest'] },
     ['blocking', 'requestHeaders'],
   )
 }

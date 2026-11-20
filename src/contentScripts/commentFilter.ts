@@ -25,8 +25,8 @@ function getThread(element: HTMLElement): HTMLElement | null {
 
 export function startCommentFilter() {
   const hidden = new Map<HTMLElement, { value: string, priority: string }>()
-  const observers = new Map<Document | ShadowRoot, MutationObserver>()
-  const pending = new Set<Document | ShadowRoot | Element>()
+  const observers = new Map<Element | ShadowRoot, MutationObserver>()
+  const pending = new Set<ShadowRoot | Element>()
   const waiting = new Set<Element>()
   let timer: ReturnType<typeof setTimeout> | undefined
   let queued = false
@@ -50,8 +50,8 @@ export function startCommentFilter() {
     return root instanceof ShadowRoot ? commentRoot(root.host) : null
   }
 
-  function scan(root: Document | ShadowRoot | Element) {
-    if (!(root instanceof Element) && !observers.has(root)) {
+  function observe(root: Element | ShadowRoot) {
+    if (!observers.has(root)) {
       const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           const element = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement
@@ -68,6 +68,9 @@ export function startCommentFilter() {
       observer.observe(root, { childList: true, subtree: true, characterData: true })
       observers.set(root, observer)
     }
+  }
+
+  function scan(root: Element | ShadowRoot) {
     const comments = [...root.querySelectorAll<HTMLElement>(rootSelector)]
     if (root instanceof HTMLElement && root.matches(rootSelector))
       comments.unshift(root)
@@ -97,7 +100,10 @@ export function startCommentFilter() {
       if (element.shadowRoot) {
         waiting.delete(element)
         const fresh = !observers.has(element.shadowRoot)
-        scan(element.shadowRoot)
+        if (fresh) {
+          observe(element.shadowRoot)
+          scan(element.shadowRoot)
+        }
         const comment = commentRoot(element)
         if (fresh && comment && comment !== root)
           pending.add(comment)
@@ -123,7 +129,7 @@ export function startCommentFilter() {
     if (stopped)
       return
     for (const [root, observer] of observers) {
-      if (root instanceof ShadowRoot && !root.host.isConnected) {
+      if (!root.isConnected) {
         observer.disconnect()
         observers.delete(root)
       }
@@ -149,7 +155,37 @@ export function startCommentFilter() {
     })
   }
 
-  pending.add(document)
+  const containerSelector = `bili-comments, bili-comment-thread-renderer, .bb-comment, .comment-bilibili-fold, ${rootSelector}`
+  function discover(root: Element) {
+    if (root.matches(containerSelector)) {
+      observe(root)
+      pending.add(root)
+      return
+    }
+    for (const element of root.querySelectorAll(containerSelector)) {
+      if (!element.parentElement?.closest(containerSelector)) {
+        observe(element)
+        pending.add(element)
+      }
+    }
+  }
+
+  const discovery = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.target instanceof Element && record.target.closest(containerSelector))
+        continue
+      for (const node of record.addedNodes) {
+        if (node instanceof Element)
+          discover(node)
+      }
+    }
+    if (pending.size || records.some(record => Array.from(record.removedNodes).some(node =>
+      node instanceof Element && (node.matches(containerSelector) || node.querySelector(containerSelector))))) {
+      schedule()
+    }
+  })
+  discover(document.documentElement)
+  discovery.observe(document, { childList: true, subtree: true })
   refresh()
   const resume = () => {
     if (!document.hidden) {
@@ -160,6 +196,7 @@ export function startCommentFilter() {
   document.addEventListener('visibilitychange', resume)
   return () => {
     stopped = true
+    discovery.disconnect()
     clearTimeout(timer)
     document.removeEventListener('visibilitychange', resume)
     waiting.clear()

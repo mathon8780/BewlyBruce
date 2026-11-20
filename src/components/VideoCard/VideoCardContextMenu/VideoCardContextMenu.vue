@@ -237,6 +237,7 @@ function handleRemoved(selectedOpt?: { dislikeReasonId: number }) {
     <PipWindow
       v-if="showPipWindow"
       :url="video.url"
+      @blocked="showPipWindow = false"
       @close="handleClose"
     />
   </div>

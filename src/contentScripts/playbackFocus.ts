@@ -17,7 +17,6 @@ function isPlaybackPage() {
 // 只用样式隐藏推荐和活动，不修改原站组件树，以免干扰初始化和评论懒加载。
 export function startPlaybackFocus(initial: PlaybackFocusOptions) {
   let options = { ...initial }
-  let timer: ReturnType<typeof setInterval> | undefined
   let disposed = false
   const style = document.createElement('style')
   style.dataset.bewlyPlaybackFocus = ''
@@ -30,8 +29,7 @@ export function startPlaybackFocus(initial: PlaybackFocusOptions) {
   }
 
   function stop() {
-    clearInterval(timer)
-    timer = undefined
+    window.removeEventListener('historyChange', refresh)
     window.removeEventListener('popstate', refresh)
     window.removeEventListener('hashchange', refresh)
     document.documentElement.removeAttribute('data-bewly-hide-recommendations')
@@ -45,11 +43,9 @@ export function startPlaybackFocus(initial: PlaybackFocusOptions) {
       stop()
       return
     }
-    if (!style.isConnected)
+    if (!style.isConnected) {
       document.documentElement.append(style)
-    if (!timer) {
-      // 原生 SPA 的 pushState 不会触发 popstate；新推荐节点由 CSS 自动覆盖。
-      timer = setInterval(refresh, 500)
+      window.addEventListener('historyChange', refresh)
       window.addEventListener('popstate', refresh)
       window.addEventListener('hashchange', refresh)
     }

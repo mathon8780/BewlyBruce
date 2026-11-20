@@ -281,24 +281,12 @@ function handleOsScroll() {
 }
 
 function openIframeDrawer(url: string) {
-  const isSameOrigin = (origin: URL, destination: URL) =>
-    origin.protocol === destination.protocol && origin.host === destination.host && origin.port === destination.port
-
-  const currentUrl = new URL(location.href)
-  const destination = new URL(url)
-
-  try {
-    if (!isSameOrigin(currentUrl, destination)) {
-      openLinkToNewTab(url)
-      return
-    }
-  }
-  catch {
-    openLinkToNewTab(url)
+  const destination = new URL(url, location.href)
+  if (destination.origin !== location.origin) {
+    openLinkToNewTab(destination.href)
     return
   }
-
-  iframeDrawerURL.value = url
+  iframeDrawerURL.value = destination.href
   showIframeDrawer.value = true
 }
 

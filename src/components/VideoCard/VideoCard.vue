@@ -89,19 +89,14 @@ const contentVisibility = ref<'auto' | 'visible'>('auto')
 const videoElement = ref<HTMLVideoElement | null>(null)
 const previewEnabled = computed(() => props.showPreview && settings.value.enableVideoPreview)
 
-let previewGeneration = 0
-let alive = true
-
 watch(
   [isHover, previewEnabled, () => props.video?.bvid, () => props.video?.aid, () => props.video?.cid],
   async (_, __, onCleanup) => {
     const controller = new AbortController()
     onCleanup(() => controller.abort())
-    const generation = ++previewGeneration
     const video = props.video
     if (
-      !alive
-      || !video
+      !video
       || !isHover.value
       || !previewEnabled.value
       || previewVideoUrl.value
@@ -111,7 +106,7 @@ watch(
     }
     try {
       const url = await getPreviewUrl(video, controller.signal)
-      if (alive && isHover.value && generation === previewGeneration)
+      if (!controller.signal.aborted && isHover.value)
         previewVideoUrl.value = url
     }
     catch {
@@ -130,16 +125,12 @@ watch(
 )
 
 function stopPreview() {
-  previewGeneration++
   clearTimeout(mouseEnterTimeout)
   isHover.value = false
   videoElement.value?.pause()
 }
 onDeactivated(stopPreview)
-onBeforeUnmount(() => {
-  alive = false
-  stopPreview()
-})
+onBeforeUnmount(stopPreview)
 
 function toggleWatchLater() {
   if (!props.video)
@@ -187,7 +178,6 @@ function handleMouseEnter() {
 }
 
 function handelMouseLeave() {
-  previewGeneration++
   contentVisibility.value = 'auto'
   isHover.value = false
   clearTimeout(mouseEnterTimeout)
@@ -344,6 +334,7 @@ provide('getVideoType', () => props.type!)
               <video
                 v-if="previewVideoUrl && isHover"
                 ref="videoElement"
+                :src="previewVideoUrl"
                 autoplay
                 muted
                 :controls="settings.enableVideoCtrlBarOnVideoCard"
@@ -353,10 +344,9 @@ provide('getVideoType', () => props.type!)
                 aspect-video
                 rounded="$bew-radius"
                 bg-black
+                @error="previewVideoUrl = ''"
                 @mouseenter="handleMouseEnter"
-              >
-                <source :src="previewVideoUrl" type="video/mp4">
-              </video>
+              />
             </Transition>
 
             <!-- Ranking Number -->
