@@ -5,10 +5,10 @@ import { createInflightRequests } from '~/utils/inflightRequest'
 
 const pendingPreview = createInflightRequests()
 
-export function getPreviewUrl(
+export function getPreviewSources(
   video: { aid?: number, bvid?: string, cid?: number },
   consumer?: AbortSignal,
-): Promise<string> {
+): Promise<string[]> {
   return pendingPreview(
     `${video.bvid || video.aid}:${video.cid || ''}`,
     async (signal) => {
@@ -27,9 +27,13 @@ export function getPreviewUrl(
       if (signal.aborted)
         throw new Error('Preview request expired')
       const result: VideoPreviewResult = await api.video.getVideoPreview({ bvid, cid }, { signal })
-      if (result.code !== 0 || !result.data?.durl?.[0]?.url)
+      const segment = result.data?.durl?.[0]
+      if (result.code !== 0 || !segment)
         throw new Error(result.message)
-      return result.data.durl[0].url
+      const urls = [segment.url, ...(segment.backup_url ?? [])].filter(Boolean)
+      if (!urls.length)
+        throw new Error('Preview has no playable sources')
+      return [...new Set(urls)]
     },
     consumer,
   )

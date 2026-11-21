@@ -33,7 +33,7 @@ export interface Durl {
   ahead: string
   vhead: string
   url: string
-  backup_url: null
+  backup_url: string[] | null
 }
 
 export interface SupportFormat {

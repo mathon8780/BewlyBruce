@@ -21,26 +21,25 @@ export interface SubscribedSeriesItem {
 
 const PAGE_SIZE = 20
 
-function sortedItems(series: Map<number, List>): SubscribedSeriesItem[] {
-  return [...series.values()]
-    .sort((a, b) => premiereTimestamp(b) - premiereTimestamp(a))
-    .map(item => ({
-      uniqueId: String(item.season_id),
-      airDate: seriesAirDate(item.publish?.pub_time),
-      totalEpisodes: item.total_count || 0,
-      releasedEpisodes: item.formal_ep_count || 0,
-      posterCover: item.cover,
-      video: {
-        id: item.season_id,
-        title: item.title,
-        cover: item.horizontal_cover_16_9 || item.cover,
-        url: item.url || `https://www.bilibili.com/bangumi/play/ss${item.season_id}`,
-        view: item.stat?.view,
-        danmaku: item.stat?.danmaku,
-        desc: item.progress,
-        threePointV2: [],
-      },
-    }))
+function seriesEntry(item: List) {
+  const normalized: SubscribedSeriesItem = {
+    uniqueId: String(item.season_id),
+    airDate: seriesAirDate(item.publish?.pub_time),
+    totalEpisodes: item.total_count || 0,
+    releasedEpisodes: item.formal_ep_count || 0,
+    posterCover: item.cover,
+    video: {
+      id: item.season_id,
+      title: item.title,
+      cover: item.horizontal_cover_16_9 || item.cover,
+      url: item.url || `https://www.bilibili.com/bangumi/play/ss${item.season_id}`,
+      view: item.stat?.view,
+      danmaku: item.stat?.danmaku,
+      desc: item.progress,
+      threePointV2: [],
+    },
+  }
+  return { timestamp: premiereTimestamp(item), normalized }
 }
 
 export function createSubscribedSeriesLoader(
@@ -48,14 +47,14 @@ export function createSubscribedSeriesLoader(
   userId: () => string | undefined,
   onProgress: (count: number) => void = () => {},
 ) {
-  const makeState = () => ({ pages: [1, 1], complete: [false, false], signatures: ['', ''], series: new Map<number, List>() })
+  const makeState = () => ({ pages: [1, 1], complete: [false, false], signatures: ['', ''], series: new Map<number, ReturnType<typeof seriesEntry>>() })
   let state = makeState()
   return {
     reset() {
       state = makeState()
       onProgress(0)
     },
-    async load(current: () => boolean, publish: (page: FeedPage<SubscribedSeriesItem>) => void = () => {}) {
+    async load(current: () => boolean, publish?: (page: FeedPage<SubscribedSeriesItem>) => void) {
       const vmid = userId()
       if (!vmid)
         return { items: [], done: true, unauthorized: true }
@@ -63,6 +62,19 @@ export function createSubscribedSeriesLoader(
       const { series } = owner
       let unauthorized = false
       let failed = false
+      let published = false
+      let publishTimer: ReturnType<typeof setTimeout> | undefined
+      const sortedItems = () => [...series.values()]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(entry => entry.normalized)
+
+      function publishBatch() {
+        publishTimer = undefined
+        if (publish && series.size && !unauthorized && current() && owner === state) {
+          publish({ items: sortedItems(), done: false })
+          published = true
+        }
+      }
       const results = await Promise.allSettled(
         [1, 2].map(async (type) => {
           try {
@@ -85,14 +97,17 @@ export function createSubscribedSeriesLoader(
               const done = !list?.length || page * (ps || PAGE_SIZE) >= total
               if (!done && signature === owner.signatures[index])
                 throw new Error('Subscription pagination made no progress')
-              for (const item of list || []) series.set(item.season_id, item)
+              for (const item of list || []) series.set(item.season_id, seriesEntry(item))
               onProgress(series.size)
               owner.complete[index] = done
               owner.signatures[index] = signature
               owner.pages[index]++
-              // 首次无缓存时逐页显示；完整结果仍在末尾返回，供统一排序与持久化。
-              if (!unauthorized)
-                publish({ items: sortedItems(series), done: false })
+              if (publish && list?.length && !unauthorized) {
+                if (!published)
+                  publishBatch()
+                else
+                  publishTimer ??= setTimeout(publishBatch, 150)
+              }
             }
           }
           catch (error) {
@@ -102,13 +117,17 @@ export function createSubscribedSeriesLoader(
         }),
       )
       const failure = results.find(result => result.status === 'rejected')
-      if (failure?.status === 'rejected')
+      clearTimeout(publishTimer)
+      if (failure?.status === 'rejected') {
+        if (publishTimer)
+          publishBatch()
         throw failure.reason
+      }
       if (!current() || owner !== state)
         return { items: [], done: true }
       if (unauthorized)
         return { items: [], done: true, unauthorized: true }
-      const items = sortedItems(series)
+      const items = sortedItems()
       series.clear()
       return { items, done: true }
     },

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onKeyStroke, useDebounceFn } from '@vueuse/core'
 import DOMPurify from 'dompurify'
+import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 
 import { settings } from '~/logic'
 import api from '~/utils/api'
@@ -21,30 +23,36 @@ defineProps<{
   focusedCharacter?: string
 }>()
 
+const { t } = useI18n()
+const toast = useToast()
 const keywordRef = ref<HTMLInputElement>()
-const isFocus = ref<boolean>(false)
-const keyword = ref<string>('')
+const isFocus = ref(false)
+const keyword = ref('')
 const suggestions = shallowRef<SuggestionItem[]>([])
+const searchHistory = shallowRef<HistoryItem[]>([])
+const selectedIndex = ref(-1)
+const navigating = ref(false)
 let suggestionGeneration = 0
+let historyGeneration = 0
+let pendingHistoryWrites = 0
 let disposed = false
+
+const visibleHistory = computed(() => isFocus.value && !keyword.value.length ? searchHistory.value : [])
+const visibleSuggestions = computed(() => isFocus.value && keyword.value.length ? suggestions.value : [])
+const candidates = computed(() => keyword.value.length ? visibleSuggestions.value : visibleHistory.value)
+const inputValue = computed({
+  get: () => candidates.value[selectedIndex.value]?.value ?? keyword.value,
+  set: updateKeyword,
+})
 onScopeDispose(() => {
   disposed = true
   suggestionGeneration++
+  historyGeneration++
 })
-watch(keyword, () => {
-  suggestionGeneration++
-  if (!keyword.value.trim())
-    suggestions.value = []
-}, { flush: 'sync' })
-const selectedIndex = ref<number>(-1)
-const searchHistory = shallowRef<HistoryItem[]>([])
-const historyItemRef = ref<HTMLElement[]>([])
-const suggestionItemRef = ref<HTMLElement[]>([])
-
-watch(isFocus, async (focus) => {
-  // 延后加载搜索历史
+watch(isFocus, (focus) => {
+  selectedIndex.value = -1
   if (focus)
-    searchHistory.value = await getSearchHistory()
+    void refreshHistory()
 })
 
 onKeyStroke('/', (e: KeyboardEvent) => {
@@ -69,138 +77,97 @@ onKeyStroke('Escape', (e: KeyboardEvent) => {
   isFocus.value = false
 }, { target: keywordRef })
 
-const handleInput = useDebounceFn(async () => {
-  if (disposed)
+const fetchSuggestions = useDebounceFn(async (term: string, generation: number) => {
+  if (disposed || generation !== suggestionGeneration)
     return
-  selectedIndex.value = -1
-  const term = keyword.value
-  const generation = ++suggestionGeneration
-  if (!term.trim()) {
-    suggestions.value = []
-    return
-  }
   try {
     const res: SuggestionResponse = await api.search.getSearchSuggestion({ term })
-    if (disposed || generation !== suggestionGeneration || keyword.value !== term)
-      return
-    suggestions.value = res?.code === 0 && Array.isArray(res.result?.tag) ? res.result.tag : []
+    if (!disposed && generation === suggestionGeneration)
+      suggestions.value = res?.code === 0 && Array.isArray(res.result?.tag) ? res.result.tag : []
   }
   catch {
-    if (!disposed && generation === suggestionGeneration)
-      suggestions.value = []
+    // 短暂的建议请求失败不影响正常搜索。
   }
 }, 200)
 
-async function navigateToSearchResultPage(keyword: string) {
-  if (keyword) {
-    let target = '_blank'
-    if (settings.value.searchBarLinkOpenMode === 'currentTabIfNotHomepage')
-      target = isHomePage() ? '_blank' : '_self'
-    else if (settings.value.searchBarLinkOpenMode === 'currentTab')
-      target = '_self'
-    else if (settings.value.searchBarLinkOpenMode === 'newTab')
-      target = '_blank'
+function updateKeyword(value: string) {
+  keyword.value = value
+  selectedIndex.value = -1
+  suggestions.value = []
+  const generation = ++suggestionGeneration
+  if (value.trim())
+    void fetchSuggestions(value, generation)
+}
 
-    window.open(`//search.bilibili.com/all?keyword=${encodeURIComponent(keyword)}`, target)
-    const searchItem = {
-      value: keyword,
-      timestamp: Number(new Date()),
-    }
-    searchHistory.value = await addSearchHistory(searchItem)
+function applyHistory(items: HistoryItem[]) {
+  searchHistory.value = items
+  if (!keyword.value)
+    selectedIndex.value = -1
+}
+
+async function refreshHistory() {
+  if (pendingHistoryWrites)
+    return
+  const generation = ++historyGeneration
+  try {
+    const items = await getSearchHistory()
+    if (!disposed && generation === historyGeneration)
+      applyHistory(items)
+  }
+  catch {
+    // 读取失败时保留已显示的记录。
   }
 }
 
-async function handleDelete(value: string) {
-  searchHistory.value = await removeSearchHistory(value)
-}
-
-function handleKeyUp(e: KeyboardEvent) {
-  // Skip the key event triggered by IME
-  if (e.isComposing)
-    return
-
-  if (selectedIndex.value <= 0) {
-    selectedIndex.value = 0
-    return
+async function updateHistory(action: () => Promise<HistoryItem[]>) {
+  historyGeneration++
+  pendingHistoryWrites++
+  try {
+    const items = await action()
+    if (!disposed)
+      applyHistory(items)
   }
-
-  selectedIndex.value--
-
-  if (isFocus.value && suggestions.value.length !== 0)
-    keyword.value = suggestions.value[selectedIndex.value].value
-  else if (isFocus.value && searchHistory.value.length !== 0)
-    keyword.value = searchHistory.value[selectedIndex.value].value
-
-  suggestionItemRef.value.forEach((item, index) => {
-    if (index === selectedIndex.value)
-      item.classList.add('active')
-    else item.classList.remove('active')
-  })
-
-  historyItemRef.value.forEach((item, index) => {
-    if (index === selectedIndex.value)
-      item.classList.add('active')
-    else item.classList.remove('active')
-  })
-}
-
-function handleKeyDown(e: KeyboardEvent) {
-  // Skip the key event triggered by IME
-  if (e.isComposing)
-    return
-
-  if (!suggestions.value.length && !searchHistory.value.length)
-    return
-
-  let isShowSuggestion = false
-  if (isFocus.value && suggestions.value.length !== 0)
-    isShowSuggestion = true
-  else if (isFocus.value && !keyword.value && searchHistory.value.length !== 0)
-    isShowSuggestion = false
-
-  if (
-    isShowSuggestion
-    && selectedIndex.value >= suggestions.value.length - 1
-  ) {
-    selectedIndex.value = suggestions.value.length - 1
-    return
+  catch {
+    if (!disposed)
+      toast.error(t('search_bar.history_sync_failed'))
   }
-  if (
-    !isShowSuggestion
-    && selectedIndex.value >= searchHistory.value.length - 1
-  ) {
-    selectedIndex.value = searchHistory.value.length - 1
-    return
-  }
-
-  selectedIndex.value++
-  keyword.value = isShowSuggestion
-    ? suggestions.value[selectedIndex.value].value
-    : searchHistory.value[selectedIndex.value].value
-
-  suggestionItemRef.value.forEach((item, index) => {
-    if (index === selectedIndex.value)
-      item.classList.add('active')
-    else item.classList.remove('active')
-  })
-
-  historyItemRef.value.forEach((item, index) => {
-    if (index === selectedIndex.value)
-      item.classList.add('active')
-    else item.classList.remove('active')
-  })
-}
-
-function handleKeyEnter(e: KeyboardEvent) {
-  if (!e.shiftKey && e.key === 'Enter' && !e.isComposing) {
-    e.preventDefault()
-    navigateToSearchResultPage(keyword.value)
+  finally {
+    pendingHistoryWrites--
   }
 }
 
-async function handleClearSearchHistory() {
-  await clearAllSearchHistory()
-  searchHistory.value = []
+async function navigateToSearchResultPage(term: string) {
+  if (!term.trim() || navigating.value)
+    return
+  const mode = settings.value.searchBarLinkOpenMode
+  const sameTab = mode === 'currentTab' || (mode === 'currentTabIfNotHomepage' && !isHomePage())
+  const url = `//search.bilibili.com/all?keyword=${encodeURIComponent(term)}`
+  if (!sameTab)
+    window.open(url, '_blank')
+
+  navigating.value = sameTab
+  try {
+    await updateHistory(() => addSearchHistory({ value: term, timestamp: Date.now() }))
+    if (sameTab && !disposed)
+      window.open(url, '_self')
+  }
+  finally {
+    navigating.value = false
+  }
+}
+
+function handleArrow(event: KeyboardEvent, direction: -1 | 1) {
+  if (event.isComposing || !candidates.value.length)
+    return
+  event.preventDefault()
+  selectedIndex.value = Math.min(candidates.value.length - 1, Math.max(-1, selectedIndex.value + direction))
+}
+
+function handleKeyEnter(event: KeyboardEvent) {
+  if (!event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    void navigateToSearchResultPage(inputValue.value)
+  }
 }
 </script>
 
@@ -243,7 +210,7 @@ async function handleClearSearchHistory() {
 
       <input
         ref="keywordRef"
-        v-model="keyword"
+        v-model="inputValue"
         class="group"
         rounded="60px focus:$bew-radius"
         p="l-6 r-18 y-3"
@@ -253,18 +220,17 @@ async function handleClearSearchHistory() {
         transition="all duration-300"
         type="text"
         @focus="isFocus = true"
-        @input="handleInput"
-        @keydown.enter.stop.passive="handleKeyEnter"
-        @keyup.up.stop.passive="handleKeyUp"
-        @keyup.down.stop.passive="handleKeyDown"
+        @keydown.enter.stop="handleKeyEnter"
+        @keydown.up.stop="handleArrow($event, -1)"
+        @keydown.down.stop="handleArrow($event, 1)"
         @keydown.stop="() => {}"
       >
       <button
-        v-if="isFocus && keyword"
+        v-if="isFocus && inputValue"
         pos="absolute right-12" bg="$bew-fill-1 hover:$bew-fill-2" text="xs" rounded-10
         p-1
         flex="~ items-center justify-between"
-        @click="keyword = ''"
+        @click="updateKeyword('')"
       >
         <div i-ic-baseline-clear shrink-0 />
       </button>
@@ -280,7 +246,7 @@ async function handleClearSearchHistory() {
         bg="hover:$bew-fill-2"
         filter="group-focus-within:~"
         style="--un-drop-shadow: drop-shadow(0 0 6px var(--bew-theme-color))"
-        @click="navigateToSearchResultPage(keyword)"
+        @click="navigateToSearchResultPage(inputValue)"
       >
         <div i-tabler:search block align-middle />
       </button>
@@ -288,24 +254,21 @@ async function handleClearSearchHistory() {
 
     <Transition name="result-list">
       <div
-        v-if="
-          isFocus
-            && searchHistory.length !== 0
-            && keyword.length === 0
-        "
+        v-if="visibleHistory.length"
         id="search-history"
       >
         <div class="history-list flex flex-col gap-y-2">
           <div class="title p-2 pb-0 flex justify-between">
             <span>{{ $t('search_bar.history_title') }}</span>
-            <button class="rounded-2 duration-300 pointer-events-auto cursor-pointer" hover="text-$bew-theme-color" text="base $bew-text-2" @click="handleClearSearchHistory">
+            <button class="rounded-2 duration-300 pointer-events-auto cursor-pointer" hover="text-$bew-theme-color" text="base $bew-text-2" @click="updateHistory(clearAllSearchHistory)">
               {{ $t('search_bar.clear_history') }}
             </button>
           </div>
 
           <div class="history-item-container p2 flex flex-wrap gap-x-3 gap-y-3">
             <div
-              v-for="item in searchHistory" :key="item.timestamp" ref="historyItemRef"
+              v-for="(item, index) in visibleHistory" :key="item.value"
+              :class="{ active: index === selectedIndex }"
               class="history-item group"
               flex justify-between items-center
               @click="navigateToSearchResultPage(item.value)"
@@ -315,7 +278,7 @@ async function handleClearSearchHistory() {
                 rounded-full duration-300 pointer-events-auto cursor-pointer p-1
                 text="xs $bew-text-2 hover:white" leading-0 bg="$bew-fill-2 hover:$bew-theme-color"
                 pos="absolute top-0 right-0" scale-80 opacity-0 group-hover:opacity-100
-                @click.stop="handleDelete(item.value)"
+                @click.stop="updateHistory(() => removeSearchHistory(item.value))"
               >
                 <div i-ic-baseline-clear />
               </button>
@@ -327,13 +290,13 @@ async function handleClearSearchHistory() {
 
     <Transition name="result-list">
       <div
-        v-if="isFocus && suggestions.length !== 0 && keyword.length > 0"
+        v-if="visibleSuggestions.length"
         id="search-suggestion"
       >
         <div
-          v-for="(item, index) in suggestions"
+          v-for="(item, index) in visibleSuggestions"
           :key="index"
-          ref="suggestionItemRef"
+          :class="{ active: index === selectedIndex }"
           class="suggestion-item"
           @click="navigateToSearchResultPage(item.value)"
         >

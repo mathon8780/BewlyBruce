@@ -3,14 +3,14 @@ import { dirname, join } from 'node:path'
 import fs from 'fs-extra'
 import type { HMRPayload, PluginOption } from 'vite'
 
-import { isFirefox, isSafari, isWin, r } from './scripts/utils'
+import { isFirefox, isWin, r } from './scripts/utils'
 
-const targetDir = r(isFirefox ? 'extension-firefox' : isSafari ? 'extension-safari' : 'extension')
+const targetDir = r(isFirefox ? 'extension-firefox' : 'extension')
 
 export function MV3Hmr(): PluginOption {
   return {
     name: 'vite-mv3-hmr',
-    apply: 'serve',
+    apply: (_config, { command, mode }) => command === 'serve' && mode !== 'test',
     enforce: 'post',
     async configureServer(server) {
       const originWsSend: (payload: HMRPayload) => void = server.ws.send

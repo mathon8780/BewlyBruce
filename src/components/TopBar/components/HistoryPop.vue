@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useDateFormat } from '@vueuse/core'
+import { formatDate } from '@vueuse/core'
 import type { Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -378,7 +378,7 @@ function deleteHistoryItem(index: number, historyItem: HistoryItem) {
                 </span>
               </div>
               <p text="$bew-text-2 sm">
-                {{ useDateFormat(historyItem.view_at * 1000, 'YYYY-MM-DD HH:mm:ss').value }}
+                {{ formatDate(new Date(historyItem.view_at * 1000), 'YYYY-MM-DD HH:mm:ss') }}
               </p>
             </div>
           </section>

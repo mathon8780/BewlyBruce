@@ -179,17 +179,14 @@ it('renders cold-start batches before completion and only persists the final sor
   expect(snapshot.write).toHaveBeenCalledExactlyOnceWith({ items: [{ id: 'newer' }, { id: 'older' }], done: true })
 })
 
-it('keeps a complete stale snapshot visible while new partial batches arrive', async () => {
-  let publish!: (page: FeedPage<{ id: string }>) => void
+it('skips intermediate publication while a complete stale snapshot is visible', async () => {
   let finish!: (page: FeedPage<{ id: string }>) => void
   const { feed, snapshot } = mountSnapshotFeed(true, (_, update) => {
-    publish = update!
+    expect(update).toBeUndefined()
     return new Promise((resolve) => {
       finish = resolve
     })
   })
-  await settle()
-  publish({ items: [{ id: 'partial' }], done: false })
   await settle()
   expect(document.querySelector('p')!.textContent).toBe('saved')
   expect(feed.showingSnapshot.value).toBe(true)
@@ -260,7 +257,7 @@ it('keeps stale data on network failure, allows retry, and clears it on an autho
   }
 })
 
-it('ignores an obsolete background refresh after a newer explicit refresh', async () => {
+it('ignores obsolete cold-start batches after a newer explicit refresh', async () => {
   let finishOld!: (page: FeedPage<{ id: string }>) => void
   let publishOld!: (page: FeedPage<{ id: string }>) => void
   const load = vi.fn<Parameters<typeof mountSnapshotFeed>[1]>()
@@ -271,7 +268,7 @@ it('ignores an obsolete background refresh after a newer explicit refresh', asyn
       })
     })
     .mockResolvedValueOnce({ items: [{ id: 'latest' }], done: true })
-  const { feed, snapshot } = mountSnapshotFeed(true, load)
+  const { feed, snapshot } = mountSnapshotFeed(undefined, load)
   await settle()
   await feed.reset()
   publishOld({ items: [{ id: 'obsolete-partial' }], done: false })

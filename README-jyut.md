@@ -18,17 +18,8 @@
 >
 > 事關考慮到維護嘅效率同埋難度, 深色模式淨係會適應常用頁面, 一啲冇咁常用嘅頁面唔會適應調整
 
-> [!CAUTION]
-> [BLBewly](https://apps.apple.com/us/app/blbewly/id6742200021) 係 Safari 上嘅免費 BewlyBewly 延伸功能。我哋感謝 [𝗦𝘁𝗲𝘃𝗲 𝕏](https://x.com/st7evechou) 幫手免費將應用程式發佈到 Safari。
-> 但係，Safari 版本遇到嘅問題唔喺我哋嘅維護範圍內，我哋唔會考慮 Safari 維護。
-
-> [!CAUTION]
-> 如果你單緊呢個延伸功能，你嘅瀏覽器可能會話佢可以睇到你嘅瀏覽紀錄。
->
-> 呢個係因爲 BewlyBewly 用咗["tabs" 權限](https://developer.chrome.com/docs/extensions/reference/api/tabs)，呢個權限亦都可以用嚟讀取每個分頁，從而知道瀏覽紀錄，但係喺呢度冇用到。
->
-> **有啲瀏覽器會同你講最壞嘅情況係點同最高嘅風險，確保你單咗之後嘅安全。**
-> 另外，呢個項目係開源嘅，所以你可以睇到佢究竟做緊乜。
+> [!NOTE]
+> 維護範圍包括 Chromium（Chrome、Edge 等）同 Firefox。安裝嗰陣請允許延伸功能存取 Bilibili 同 hdslb.com。Firefox 亦會用 Cookie 同請求標頭權限維持網站同容器嘅登入狀態。
 
 BewlyBewly 係一個用於 BiliBili 嘅瀏覽器延伸功能，目的係透過重新設計 BiliBili 嘅 UI 令到用戶體驗提升。設計靈感源於 YouTube、Vision OS 同 iOS，從而實現更具視覺吸引力同用戶友好嘅介面。
 
@@ -36,56 +27,22 @@ BewlyBewly 係一個用於 BiliBili 嘅瀏覽器延伸功能，目的係透過�
 
 ## ⬇️ 單撈
 
-### 線上單嘢
+### Chromium（Chrome、Edge）
 
-> [!TIP]
-> 即使你用嘅係 Edge browser，我哋都係建議你喺返 Chrome 線上應用程式商店單撈。事關喺審核速度上，Chrome 線上應用程式商店照計係快過 Edge 的附加元件好鬼死多。~~Edge Add-ons 收皮啦屌~~
->
-> 仲有，BewlyBewly 喺 Chrome 線上應用程式商店嘅版本執啲嚴重性嘅 bug 速度係會快趣過 Edge 附加元件好多嘅 ~~Edge Add-ons 你幾時死~~
+1. 解壓 `extension.zip`。
+2. Chrome 開 `chrome://extensions/`，Edge 開 `edge://extensions/`，打開開發人員模式。
+3. 撳「載入未封裝項目」，揀有 `manifest.json` 嘅資料夾，再重新整理 Bilibili 頁面。
 
-- Chrome: <https://chromewebstore.google.com/detail/bewlybewly/bbbiejemhfihiooipfcjmjmbfdmobobp>
-- Edge: <https://chromewebstore.google.com/detail/bewlybewly/bbbiejemhfihiooipfcjmjmbfdmobobp>
-- Firefox: <https://addons.mozilla.org/zh-TW/firefox/addon/bewlybewly/>
+[Chrome 官方指引](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked) · [Edge 官方指引](https://learn.microsoft.com/en-us/microsoft-edge/extensions/getting-started/extension-sideloading)
 
-#### Firefox 用家留意吓
+### Firefox
 
-> [!WARNING]
-> 用 Firefox 瀏覽器嗰陣，爲咗你正常使用 BewlyBewly，記得開晒下邊圖片展示嘅權限
+- 開 `about:debugging#/runtime/this-firefox` 嘅「此 Firefox」，撳「暫時載入附加元件」，揀 `extension-firefox.zip` 或者解壓後嘅 `manifest.json`。重開 Firefox 之後要再載入。
+- 長期安裝請用 Mozilla 簽署嘅 XPI，喺 `about:addons` 揀「從檔案安裝附加元件」。本機打包嘅 `extension.xpi` 係未簽署嘅測試包。
 
-<br/> <img width="655" alt="enable all bewlybewly permissions on firefox" src="https://github.com/hakadao/BewlyBewly/assets/33394391/9566aed8-040a-4435-a2ec-c61117f8e429">
+[Firefox 暫時安裝](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/) · [Firefox 簽署要求](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
 
-### 離線單嘢
-
-[CI](https://github.com/hakadao/BewlyBewly/actions)：自動建置最新嘅程式碼
-
-[Releases](https://github.com/hakadao/BewlyBewly/releases)：穩定版本
-
-#### Edge 同 Chrome (推介)
-
-> 確保你單咗 [extension.zip](https://github.com/hakadao/BewlyBewly/releases)。
-
-喺 Edge 入邊打開 `edge://extensions` 頁面抑或喺 Chrome 度打開 `chrome://extensions` 頁面，淨係要你將單咗嘅 `extension.zip` 檔案擺到 browser 度，就攪掂喇。
-
-<details>
- <summary> Edge 同 Chrome 第種單撈方法 </summary>
-
-#### Edge
-
-> 確保你單咗 [extension.zip](https://github.com/hakadao/BewlyBewly/releases) 兼且解壓縮個檔案
-
-1. 喺地址欄入邊輸入 `edge://extensions/`，然之後撳 Enter
-2. 打開`開發者模式`，撳`載入解壓縮` <br/> <img width="655" alt="image" src="https://user-images.githubusercontent.com/33394391/232246901-e3544c16-bde2-480d-b770-ca5242793963.png">
-3. 將解開嘅擴充功能資料夾載入到你嘅瀏覽器度
-
-#### Chrome
->
-> 確保你單咗 [extension.zip](https://github.com/hakadao/BewlyBewly/releases) 兼且解壓縮個檔案
-
-1. 在地址欄中輸入 `chrome://extensions/`，然後按下 Enter 鍵
-2. 打開`開發者模式`，撳`載入解壓縮` <br/> <img width="655" alt="Snipaste_2022-03-27_18-17-04" src="https://user-images.githubusercontent.com/33394391/160276882-13da0484-92c1-47dd-add8-7655c5c2bf1c.png">
-3. 將解開嘅擴充功能資料夾載入到你嘅瀏覽器度
-
-</details>
+要自己建置同打包，可以睇[本機開發與建置](docs/LOCAL_DEVELOPMENT-cmn_CN.md#多平台打包)。
 
 ## 🤝 貢獻同建置專案
 

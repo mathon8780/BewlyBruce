@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill'
 
 import { setupApiMsgLstnrs } from './messageListeners/api'
+import { setupSearchHistoryMessages } from './messageListeners/searchHistory'
 import { setupStorageMessages } from './messageListeners/storage'
 import { setupTabMsgLstnrs } from './messageListeners/tabs'
 
@@ -41,3 +42,4 @@ if (process.env.FIREFOX) {
 setupApiMsgLstnrs()
 setupTabMsgLstnrs()
 setupStorageMessages()
+setupSearchHistoryMessages()

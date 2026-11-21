@@ -19,18 +19,8 @@ English | [官话 - 简体中文](README-cmn_CN.md) | [官話 - 繁體中文](RE
 > The dark mode will only be adapted to commonly used pages due to its efficiency and maintenance difficulty, while less
 > frequently used pages will not to be adapted.
 
-> [!CAUTION]
-> [BLBewly](https://apps.apple.com/us/app/blbewly/id6742200021) is a free BewlyBewly extension on Safari. We thank [𝗦𝘁𝗲𝘃𝗲 𝕏](https://x.com/st7evechou) for their help with the free publication of the app to Safari.
-> However, issues encountered with the Safari version are outside of our maintenance scope,
-> and we are not considering Safari maintenance.
-
-> [!CAUTION]
-> If you are installing this extension, your browser will probably say that it can read your browser history.
->
-> This is because BewlyBewly uses the ["tabs" permission](https://developer.chrome.com/docs/extensions/reference/api/tabs), which can also be used to read each tab, allowing it to know the browsing history, but it is not utilized here.
->
-> **Some browsers will mention the worst-case scenario and the highest risks, ensuring your safety after installation.**
-> Additionally, this project is open source, so you can see what exactly what it does.
+> [!NOTE]
+> This project maintains Chromium builds for browsers such as Chrome and Edge, and Firefox builds. Installation grants access to Bilibili and hdslb.com. Firefox also uses cookie and request-header permissions to keep Bilibili sessions working in their respective containers.
 
 BewlyBewly is a browser extension for BiliBili that aims to enhance the user experience by redesigning the BiliBili UI.
 The design is inspired by YouTube, Vision OS, and iOS, resulting in a more visually appealing and user-friendly interface.
@@ -39,58 +29,22 @@ Without this template, it may not be possible to develop this project.
 
 ## ⬇️ Installation
 
-### Online Installation
+### Chromium (Chrome and Edge)
 
-> [!TIP]
-> Even in the Edge browser, we strongly recommend you install it in the Chrome web store.
-> In terms of review speed, the Chrome web store is faster than Edge Add-ons.
->
-> Additionally, the Chrome Web Store version of BewlyBewly will address and fix critical bugs more quickly.
+1. Extract `extension.zip`.
+2. Open `chrome://extensions/` in Chrome or `edge://extensions/` in Edge and enable Developer mode.
+3. Select **Load unpacked**, choose the folder containing `manifest.json`, and refresh the Bilibili page.
 
-- Chrome: <https://chromewebstore.google.com/detail/bewlybewly/bbbiejemhfihiooipfcjmjmbfdmobobp>
-- Edge: <https://chromewebstore.google.com/detail/bewlybewly/bbbiejemhfihiooipfcjmjmbfdmobobp>
-- Firefox: <https://addons.mozilla.org/en-US/firefox/addon/bewlybewly/>
+[Chrome guide](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked) · [Edge guide](https://learn.microsoft.com/en-us/microsoft-edge/extensions/getting-started/extension-sideloading)
 
-#### To Firefox users
+### Firefox
 
-> [!WARNING]
-> When using the Firefox browser, remember to enable all permissions shown in the picture below for normal use of BewlyBewly
+- For a temporary install, open **This Firefox** at `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `extension-firefox.zip` or its extracted `manifest.json`. Load it again after restarting Firefox.
+- For a permanent install, use a Mozilla-signed XPI and select **Install Add-on From File** at `about:addons`. The locally built `extension.xpi` is an unsigned test package.
 
-<br/> <img width="655" alt="enable all bewlybewly permissions on firefox" src="https://github.com/hakadao/BewlyBewly/assets/33394391/9566aed8-040a-4435-a2ec-c61117f8e429">
+[Firefox temporary installation](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/) · [Firefox signing](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
 
-### Local Installation
-
-[CI](https://github.com/hakadao/BewlyBewly/actions): Automatically build with the latest code
-
-[Releases](https://github.com/hakadao/BewlyBewly/releases): Stable version
-
-#### Edge & Chrome (RECOMMENDED)
-
-> Ensure you installed [extension.zip](https://github.com/hakadao/BewlyBewly/releases) .
-
-Opening the `edge://extensions` page in the Edge or `chrome://extensions` page in Chrome,
-simply drag and drop the downloaded `extension.zip` file into the browser to complete the installation.
-
-<details>
- <summary> Another installation method for Edge & Chrome </summary>
-
-#### Edge
-
-> Ensure you installed [extension.zip](https://github.com/hakadao/BewlyBewly/releases) and decompress this file.
-
-1. Type in `edge://extensions/` in the address bar and press Enter
-2. Turn on `Developer mode` then press `Load Unpacked` <br/> <img width="655" alt="image" src="https://user-images.githubusercontent.com/33394391/232246901-e3544c16-bde2-480d-b770-ca5242793963.png">
-3. Load the decompressed extension folder in your browser
-
-#### Chrome
->
-> Ensure you installed [extension.zip](https://github.com/hakadao/BewlyBewly/releases) and decompress this file.
-
-1. Type in `chrome://extensions/` in the address bar and press Enter
-2. Turn on `Developer mode` then press `Load Unpacked` <br/> <img width="655" alt="Snipaste_2022-03-27_18-17-04" src="https://user-images.githubusercontent.com/33394391/160276882-13da0484-92c1-47dd-add8-7655c5c2bf1c.png">
-3. Load the decompressed extension folder in your browser
-
-</details>
+See the [local development guide](docs/LOCAL_DEVELOPMENT-cmn_CN.md#多平台打包) for build and packaging commands.
 
 ## 🤝 Contribution & Build
 

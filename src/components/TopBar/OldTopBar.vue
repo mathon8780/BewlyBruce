@@ -533,7 +533,7 @@ defineExpose({
             rounded-full
             transform-gpu
           >
-            <div v-if="!isLogin" class="right-side-item">
+            <div v-if="isLogin === false" class="right-side-item">
               <a href="https://passport.bilibili.com/login" class="login">
                 <div i-ic:outline-account-circle class="text-xl mr-2" />
                 {{ $t('topbar.sign_in') }}

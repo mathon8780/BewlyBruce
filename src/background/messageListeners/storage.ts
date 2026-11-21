@@ -4,6 +4,7 @@ interface StorageWrite {
   key: string
   raw: string | null
   patch?: Record<string, unknown>
+  replaceIf?: { raw: unknown }
 }
 
 export function setupStorageMessages() {
@@ -13,13 +14,17 @@ export function setupStorageMessages() {
     if (!update)
       return
     const result = writes.then(async () => {
-      const { key, raw, patch } = update
+      const { key, raw, patch, replaceIf } = update
       if (raw === null) {
         await browser.storage.local.remove(key)
       }
       else {
         const stored = (await browser.storage.local.get(key))[key]
-        const value = patch ? JSON.stringify({ ...(stored ? JSON.parse(stored as string) : {}), ...patch }) : raw
+        // 仅当存储仍是读取时发现的损坏值，才用完整快照替换它。
+        const needsRecovery = replaceIf && JSON.stringify(stored) === JSON.stringify(replaceIf.raw)
+        const value = patch && !needsRecovery
+          ? JSON.stringify({ ...(stored ? JSON.parse(stored as string) : {}), ...patch })
+          : raw
         await browser.storage.local.set({ [key]: value })
       }
     })

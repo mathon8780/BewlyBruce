@@ -1,6 +1,6 @@
 import { defineConfig, transformWithEsbuild } from 'vite'
 
-import { isDev, isFirefox, isSafari, r } from './scripts/utils'
+import { isDev, isFirefox, r } from './scripts/utils'
 import { bootstrapContentScript } from './src/contentScripts'
 import { getPageType, supportsContentScript } from './src/contentScripts/pageScope'
 import { sharedConfig } from './vite.config'
@@ -44,13 +44,7 @@ export default defineConfig({
   ],
   build: {
     watch: isDev ? { include: ['./**/*'] } : undefined,
-    outDir: r(
-      isFirefox
-        ? 'extension-firefox/dist/contentScripts'
-        : isSafari
-          ? 'extension-safari/dist/contentScripts'
-          : 'extension/dist/contentScripts',
-    ),
+    outDir: r(isFirefox ? 'extension-firefox/dist/contentScripts' : 'extension/dist/contentScripts'),
     cssCodeSplit: true,
     emptyOutDir: false,
     sourcemap: false, // https://github.com/vitejs/vite-plugin-vue/issues/35

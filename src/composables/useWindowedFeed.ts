@@ -157,11 +157,13 @@ export function useWindowedFeed<T>(options: {
           }
         }
       }
-      const result = await options.loadPage(current, (partial) => {
-        // 有完整旧缓存时避免被部分数据替换；冷启动则立即展示已返回的批次。
-        if (current() && !showingSnapshot.value)
-          replace(partial, false)
-      })
+      const publish = showingSnapshot.value
+        ? undefined
+        : (partial: FeedPage<T>) => {
+            if (current())
+              replace(partial, false)
+          }
+      const result = await options.loadPage(current, publish)
       if (!current())
         return
       replace(result, showingSnapshot.value)

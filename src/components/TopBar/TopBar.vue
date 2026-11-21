@@ -531,7 +531,7 @@ defineExpose({
             class="others" flex="~ items-center gap-1" h-46px px-5px text="$bew-text-1"
             transform-gpu
           >
-            <div v-if="!isLogin" class="right-side-item" important-w-auto>
+            <div v-if="isLogin === false" class="right-side-item" important-w-auto>
               <a href="https://passport.bilibili.com/login" class="login">
                 <div i-solar:user-circle-bold-duotone class="text-xl mr-2" />
                 {{ $t('topbar.sign_in') }}
@@ -828,13 +828,11 @@ defineExpose({
         </div>
       </main>
 
-      <KeepAlive v-if="settings.openNotificationsPageAsDrawer">
-        <NotificationsDrawer
-          v-if="drawerVisible.notifications"
-          :url="notificationsDrawerUrl"
-          @close="drawerVisible.notifications = false"
-        />
-      </KeepAlive>
+      <NotificationsDrawer
+        v-if="settings.openNotificationsPageAsDrawer && drawerVisible.notifications"
+        :url="notificationsDrawerUrl"
+        @close="drawerVisible.notifications = false"
+      />
     </header>
   </Transition>
 </template>

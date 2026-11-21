@@ -112,17 +112,29 @@ export function startCommentFilter() {
         waiting.add(element)
       }
     }
-    if (waiting.size && !timer && !document.hidden) {
-      timer = setTimeout(() => {
-        timer = undefined
-        for (const element of waiting) {
-          if (!element.isConnected)
-            waiting.delete(element)
-          else pending.add(element)
-        }
-        schedule()
-      }, 500)
+    scheduleWaiting()
+  }
+
+  function checkWaiting() {
+    for (const element of waiting) {
+      if (!element.isConnected)
+        waiting.delete(element)
+      else if (element.shadowRoot)
+        pending.add(element)
     }
+    if (pending.size)
+      schedule()
+    scheduleWaiting()
+  }
+
+  function scheduleWaiting() {
+    if (!waiting.size || timer || document.hidden)
+      return
+    timer = setTimeout(() => {
+      timer = undefined
+      if (!document.hidden)
+        checkWaiting()
+    }, 500)
   }
 
   function refresh() {
@@ -140,7 +152,10 @@ export function startCommentFilter() {
     }
     const roots = [...pending]
     pending.clear()
-    roots.forEach(scan)
+    for (const root of roots) {
+      if (root.isConnected)
+        scan(root)
+    }
   }
 
   function schedule() {
@@ -175,7 +190,7 @@ export function startCommentFilter() {
       if (record.target instanceof Element && record.target.closest(containerSelector))
         continue
       for (const node of record.addedNodes) {
-        if (node instanceof Element)
+        if (node instanceof Element && node.isConnected)
           discover(node)
       }
     }
@@ -188,10 +203,8 @@ export function startCommentFilter() {
   discovery.observe(document, { childList: true, subtree: true })
   refresh()
   const resume = () => {
-    if (!document.hidden) {
-      waiting.forEach(element => pending.add(element))
-      schedule()
-    }
+    if (!document.hidden)
+      checkWaiting()
   }
   document.addEventListener('visibilitychange', resume)
   return () => {

@@ -3,9 +3,13 @@ import { ref } from 'vue'
 
 import API_FAVORITE from '~/background/messageListeners/api/favorite'
 import API_MOMENT from '~/background/messageListeners/api/moment'
+import { setupSearchHistoryMessages } from '~/background/messageListeners/searchHistory'
 import { setupStorageMessages } from '~/background/messageListeners/storage'
 import { apiListenerFactory } from '~/background/utils'
+import { addSearchHistory, clearAllSearchHistory, getSearchHistory, removeSearchHistory } from '~/components/SearchBar/searchHistoryProvider'
 import { useStorageLocal } from '~/composables/useStorageLocal'
+import { homeTabs, resolveHomeTabVisibility } from '~/contentScripts/views/Home/homeTabs'
+import { HomeSubPage } from '~/contentScripts/views/Home/types'
 import { originalSettings, parseSettings } from '~/logic/settings'
 import { wallpaperSettingsSerializer } from '~/logic/wallpaperStorage'
 import { boundedBackfill } from '~/utils/boundedPagination'
@@ -17,6 +21,35 @@ const extension = vi.hoisted(() => {
   const values: Record<string, string> = {}
   const messages: ((message: unknown) => Promise<void> | undefined)[] = []
   const changes: ((update: Record<string, { newValue?: string }>, area: string) => void)[] = []
+  type Listener = (message: unknown) => void
+  function signal() {
+    const listeners = new Set<Listener>()
+    return {
+      addListener: (listener: Listener) => listeners.add(listener),
+      removeListener: (listener: Listener) => listeners.delete(listener),
+      emit: (message?: unknown) => listeners.forEach(listener => listener(message)),
+    }
+  }
+  const connections = signal()
+  function connect({ name }: { name: string }) {
+    const serverDisconnect = signal()
+    const client = { onMessage: signal(), onDisconnect: signal(), disconnect: () => close(serverDisconnect) }
+    const server = {
+      name,
+      onDisconnect: serverDisconnect,
+      postMessage: (message: unknown) => queueMicrotask(() => client.onMessage.emit(message)),
+      disconnect: () => close(client.onDisconnect),
+    }
+    let open = true
+    function close(event: ReturnType<typeof signal>) {
+      if (open) {
+        open = false
+        event.emit()
+      }
+    }
+    queueMicrotask(() => connections.emit(server))
+    return client
+  }
   const local = {
     get: async (key: string) => ({ [key]: values[key] }),
     set: async (items: Record<string, string>) => {
@@ -36,6 +69,8 @@ const extension = vi.hoisted(() => {
     browser: {
       storage: { local, onChanged: { addListener: (listener: (typeof changes)[number]) => changes.push(listener) } },
       runtime: {
+        connect,
+        onConnect: connections,
         onMessage: { addListener: (listener: (typeof messages)[number]) => messages.push(listener) },
         sendMessage: async (message: unknown) => {
           await Promise.all(messages.map(listener => listener(message)))
@@ -170,6 +205,113 @@ it('merges simultaneous tab edits and propagates logout', async () => {
   expect(extension.values.accessKey).toBeUndefined()
 })
 
+it('serializes search history writes and rejects an acknowledged write that did not persist', async () => {
+  setupSearchHistoryMessages()
+  const frame = document.createElement('iframe')
+  frame.src = 'https://s1.hdslb.com/bfs/seed/jinkela/short/cols/iframe.html'
+  document.body.append(frame)
+  const target = frame.contentWindow!
+  let stored: string | null = null
+  let failWrite = false
+  const post = vi.spyOn(target, 'postMessage').mockImplementation((request) => {
+    const { key, id, type, value } = request
+    if (type === 'COLS_SET' && !failWrite)
+      stored = value
+    else if (type === 'COLS_RM')
+      stored = null
+    const response = { type: 'COLS_RES', id, key, value: type === 'COLS_GET' ? stored : undefined }
+    const send = (data: unknown) => window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://s1.hdslb.com',
+      source: target,
+      data,
+    }))
+    queueMicrotask(() => {
+      send({ ...response, id: 'unrelated', value: null })
+      send(response)
+    })
+  })
+  try {
+    await Promise.all([
+      addSearchHistory({ value: 'first', timestamp: 1 }),
+      addSearchHistory({ value: 'second', timestamp: 2 }),
+    ])
+    expect(await getSearchHistory()).toEqual([
+      { value: 'second', timestamp: 2 },
+      { value: 'first', timestamp: 1 },
+    ])
+    failWrite = true
+    await expect(removeSearchHistory('second')).rejects.toThrow('could not be verified')
+    expect(await clearAllSearchHistory()).toEqual([])
+    expect(await getSearchHistory()).toEqual([])
+  }
+  finally {
+    post.mockRestore()
+    frame.remove()
+  }
+})
+
+it('preserves hidden home tabs and order when the saved catalog differs', () => {
+  const config = [
+    { page: HomeSubPage.Trending, visible: true },
+    { page: HomeSubPage.ForYou, visible: false },
+    { page: 'Removed' as HomeSubPage, visible: true },
+    { page: HomeSubPage.Following, visible: true },
+    { page: HomeSubPage.SubscribedSeries, visible: true },
+  ]
+  const initial = structuredClone(config)
+  const tabs = resolveHomeTabVisibility(config)
+  expect(tabs.filter(tab => tab.visible).map(tab => tab.page))
+    .toEqual([HomeSubPage.Trending, HomeSubPage.Following, HomeSubPage.SubscribedSeries])
+  expect(tabs).toContainEqual({ page: HomeSubPage.Ranking, visible: false })
+  expect(tabs).toContainEqual({ page: HomeSubPage.Live, visible: false })
+  expect(config).toEqual(initial)
+  expect(resolveHomeTabVisibility([]).filter(tab => tab.visible)).toHaveLength(homeTabs.length)
+})
+
+it('retries hydration before writing edits and preserves the previously saved home tabs', async () => {
+  setupStorageMessages()
+  const key = 'settings'
+  const tabs = [{ page: HomeSubPage.Following, visible: true }, { page: HomeSubPage.ForYou, visible: false }]
+  extension.values[key] = JSON.stringify({ tabList: tabs, layout: { dark: false } })
+  const read = vi.spyOn(extension.browser.storage.local, 'get').mockRejectedValueOnce(new Error('offline'))
+  const onError = vi.fn()
+  try {
+    const state = useStorageLocal(key, { tabList: [], layout: { dark: false } }, { debounce: 200, onError })
+    await state.ready
+    expect(onError).toHaveBeenCalledOnce()
+    expect(state.hydrated.value).toBe(false)
+    state.value.layout.dark = true
+    await state.flush()
+    expect(state.hydrated.value).toBe(true)
+    expect(state.value).toEqual({ tabList: tabs, layout: { dark: true } })
+    expect(JSON.parse(extension.values[key])).toEqual(state.value)
+  }
+  finally {
+    read.mockRestore()
+  }
+})
+
+it('applies a newer cross-tab setting when the initial deserialize is still pending', async () => {
+  const key = 'settings'
+  let finish!: () => void
+  const initial = { tabList: resolveHomeTabVisibility([]) }
+  const next = { tabList: [{ page: HomeSubPage.Following, visible: true }] }
+  extension.values[key] = JSON.stringify(initial)
+  const read = vi.fn((raw: string) => new Promise<typeof initial>((resolve) => {
+    finish = () => resolve(JSON.parse(raw))
+  }))
+  const serializer = {
+    read: async (raw: string) => raw === JSON.stringify(initial) ? read(raw) : JSON.parse(raw),
+    write: JSON.stringify,
+  }
+  const state = useStorageLocal(key, initial, { serializer })
+  await vi.waitFor(() => expect(read).toHaveBeenCalledOnce())
+  await extension.browser.storage.local.set({ [key]: JSON.stringify(next) })
+  finish()
+  await state.ready
+  expect(state.value).toEqual(next)
+})
+
 it('inherits enabled ad options and keeps a later explicit choice after reload', async () => {
   for (const key of ['blockAds', 'blockTopSearchPageAds', 'blockVideoActivities']) {
     const settings = parseSettings({ [key]: true })
@@ -192,6 +334,43 @@ it('inherits enabled ad options and keeps a later explicit choice after reload',
   await reloaded.ready
   expect(reloaded.value.blockAdsAndPromotions).toBe(false)
   expect(reloaded.value.blockRelatedVideos).toBe(true)
+})
+
+it.each(['{broken', '{"theme":0}'])('recovers invalid stored settings on an explicit reset', async (raw) => {
+  setupStorageMessages()
+  extension.values.settings = raw
+  const onError = vi.fn()
+  const state = useStorageLocal('settings', originalSettings, {
+    writeDefaults: false,
+    serializer: wallpaperSettingsSerializer,
+    onError,
+  })
+  await state.ready
+  expect(state.hydrated.value).toBe(true)
+  expect(state.value.theme).toBe(originalSettings.theme)
+  expect(extension.values.settings).toBe(raw)
+  expect(onError).toHaveBeenCalledOnce()
+
+  await state.flush({ recoverInvalid: true })
+  expect(JSON.parse(extension.values.settings).theme).toBe(originalSettings.theme)
+})
+
+it('merges changes into settings already recovered by another tab', async () => {
+  setupStorageMessages()
+  extension.values.settings = '{broken'
+  const state = useStorageLocal('settings', originalSettings, {
+    writeDefaults: false,
+    serializer: wallpaperSettingsSerializer,
+    debounce: 200,
+    onError: vi.fn(),
+  })
+  await state.ready
+
+  // 模拟另一标签页先恢复了存储，但变更事件尚未送达当前页。
+  extension.values.settings = JSON.stringify({ theme: 'dark', enableVideoPreview: false })
+  state.value.theme = 'light'
+  await state.flush()
+  expect(JSON.parse(extension.values.settings)).toEqual({ theme: 'light', enableVideoPreview: false })
 })
 
 it('rejects invalid imports before replacing settings', () => {

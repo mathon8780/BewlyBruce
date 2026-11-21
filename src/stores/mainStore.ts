@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 
-import { HomeSubPage } from '~/contentScripts/views/Home/types'
 import { AppPage } from '~/enums/appEnums'
 import { getUserID } from '~/utils/main'
 
@@ -13,11 +12,6 @@ export interface DockItem {
   useOriginalBiliPage: boolean
   url: string
   hasBewlyPage: boolean // Whether BewlyBewly has a page for this item
-}
-
-export interface HomeTab {
-  i18nKey: string
-  page: HomeSubPage
 }
 
 export const useMainStore = defineStore('main', () => {
@@ -96,35 +90,6 @@ export const useMainStore = defineStore('main', () => {
     ]
   })
 
-  const homeTabs = shallowReadonly<HomeTab[]>(
-    [
-      {
-        i18nKey: 'home.for_you',
-        page: HomeSubPage.ForYou,
-      },
-      {
-        i18nKey: 'home.following',
-        page: HomeSubPage.Following,
-      },
-      {
-        i18nKey: 'home.subscribed_series',
-        page: HomeSubPage.SubscribedSeries,
-      },
-      {
-        i18nKey: 'home.trending',
-        page: HomeSubPage.Trending,
-      },
-      {
-        i18nKey: 'home.ranking',
-        page: HomeSubPage.Ranking,
-      },
-      {
-        i18nKey: 'home.live',
-        page: HomeSubPage.Live,
-      },
-    ],
-  )
-
   const activatedCover = ref<string>('')
 
   function getBiliWebPageURLByPage(page: AppPage): string {
@@ -146,5 +111,5 @@ export const useMainStore = defineStore('main', () => {
     return activatedCover.value
   }
 
-  return { dockItems, homeTabs, getBiliWebPageURLByPage, getDockItemByPage, setActivatedCover, getActivatedCover }
+  return { dockItems, getBiliWebPageURLByPage, getDockItemByPage, setActivatedCover, getActivatedCover }
 })

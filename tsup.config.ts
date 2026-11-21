@@ -3,9 +3,9 @@ import path from 'node:path'
 import fs from 'fs-extra'
 import { defineConfig } from 'tsup'
 
-import { isDev, isFirefox, isSafari } from './scripts/utils'
+import { isDev, isFirefox } from './scripts/utils'
 
-const outDir = isFirefox ? 'extension-firefox/dist' : isSafari ? 'extension-safari/dist' : 'extension/dist'
+const outDir = isFirefox ? 'extension-firefox/dist' : 'extension/dist'
 
 export default defineConfig(() => ({
   entry: {
@@ -18,7 +18,7 @@ export default defineConfig(() => ({
   outDir,
   format: ['esm'],
   target: 'esnext',
-  ignoreWatch: ['**/extension/**', '**/extension-firefox/**', '**/extension-safari/**'],
+  ignoreWatch: ['**/extension/**', '**/extension-firefox/**'],
   splitting: false,
   // The classic extension worker cannot resolve bare npm imports.
   noExternal: ['md5'],

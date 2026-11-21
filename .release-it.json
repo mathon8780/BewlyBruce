@@ -1,7 +1,8 @@
 {
   "git": {
     "commitMessage": "chore: release v${version}",
-    "tagName": "v${version}"
+    "tagName": "v${version}",
+    "push": false
   },
   "hooks": {
     "before:init": [
@@ -16,9 +17,7 @@
       "pnpm run pack:zip-firefox"
     ],
     "after:release": [
-      "pnpm run pack:zip-firefox-sources",
-      "gh release upload v${version} extension.zip extension-firefox.zip",
-      "pnpm run submit"
+      "pnpm run pack:zip-firefox-sources"
     ]
   },
   "npm": {

@@ -18,17 +18,8 @@
 >
 > 由于效率和维护难度的原因，暗色模式只会适应常用页面，而不会适应不常用的页面。
 
-> [!CAUTION]
-> [BLBewly](https://apps.apple.com/us/app/blbewly/id6742200021) 是 Safari 上的免费 BewlyBewly 扩展程序。我们感谢 [𝗦𝘁𝗲𝘃𝗲 𝕏](https://x.com/st7evechou) 帮助我们免费将应用发布到 Safari。
-> 但是，Safari 版本遇到的问题不在我们的维护范围内，我们不考虑 Safari 维护。
-
-> [!CAUTION]
-> 如果您正在安装此扩展程序，您的浏览器可能会提示它可以读取您的浏览历史记录。
->
-> 这是因为 BewlyBewly 使用了["tabs" 权限](https://developer.chrome.com/docs/extensions/reference/api/tabs)，该权限也可用于读取每个标签页，从而了解浏览历史，但在这里并未使用。
->
-> **一些浏览器会提到最坏的情况和最高的风险，以确保您在安装后的安全。**
-> 此外，这个项目是开源的，所以您可以看到它究竟做了什么。
+> [!NOTE]
+> 维护范围包括 Chromium（Chrome、Edge 等）和 Firefox。安装时授予扩展访问 Bilibili 和 hdslb.com 的权限。Firefox 还使用 Cookie 和请求头权限维持站点及容器登录状态。
 
 BewlyBewly 是一个用于 BiliBili 的浏览器扩展，旨在通过重新设计 BiliBili 用户界面来提升用户体验。设计灵感来自于 YouTube、Vision OS 和 iOS，从而实现了更具视觉吸引力和用户友好性的界面。
 
@@ -36,7 +27,7 @@ BewlyBewly 是一个用于 BiliBili 的浏览器扩展，旨在通过重新设�
 
 ## 订阅与评论屏蔽
 
-- 首页「订阅剧集」并行请求追番、追剧，每类每页 20 项；没有可用缓存或主动刷新时，首批返回即显示，后续分页自动补齐。每批按上映时间从新到旧排序并去重，新返回的剧集可能调整已有卡片顺序；缺少上映时间时使用开播时间，两者均缺失时排在末尾。同一首页内切换标签会保留已加载结果，重复点击当前订阅标签不再刷新。
+- 首页「订阅剧集」并行请求追番、追剧，每类每页 20 项；没有可用缓存或主动刷新时，首批返回即显示，后续分页自动补齐并合并更新，按上映时间从新到旧排序并去重，新返回的剧集可能调整已有卡片顺序；缺少上映时间时使用开播时间，两者均缺失时排在末尾。同一首页内切换标签会保留已加载结果，重复点击当前订阅标签不再刷新。
 - 完整订阅结果会保存在扩展本地存储，刷新网页或重启浏览器后可先展示缓存。五分钟内直接复用，超过五分钟先展示再后台更新；有旧缓存时等新列表全部加载后整体替换。加载失败保留当前已显示的结果并提供重试，不缓存部分结果。缓存只保留最近账号、最多 2 MiB，超过三十天或账号不符时不使用；不保存封面图片。需立即获取订阅变动时使用刷新按钮。
 - 「设置 → BewlyBewly 页面 → 订阅剧集」上方选择 A 封面叠加、B 海报详情或 C 下方信息，下方编辑该样式。每种样式独立保存信息显隐、封面裁切和标题行数，可单独恢复默认；A 还可选择悬停/聚焦展开或始终显示。预览与实际页面共用卡片组件，只显示一张示例卡片，A 直接呈现展开效果。默认采用 A，横向样式最多四列，海报样式自适应最多三列，封面宽度不超过 160px，详情紧跟标题，并优先使用竖版封面。未提供的数据显示「—」，总话数未知时显示已更新话数。设置子页保留编辑状态，切换时不再等待淡入动画。
 - 「设置 → 常规 → 屏蔽」底部可开启「屏蔽含 @ 的一级评论」，默认关闭。只检查一级评论正文，命中后隐藏整条评论及其回复、查看回复入口、分隔线和间距；不单独检查回复中的 @。关闭开关后恢复显示。
@@ -45,68 +36,28 @@ BewlyBewly 是一个用于 BiliBili 的浏览器扩展，旨在通过重新设�
 
 ## 视频卡片与收藏
 
+- 首页保留已设置的标签顺序和开关。已有配置中缺少的标签默认隐藏，隐藏当前标签后会切到第一个可见标签。
 - 首页的个性推荐、正在关注、热门视频、排行和直播，以及番剧、观看历史、稍后再看和收藏页的卡片，标题固定预留两行高度。首页横向卡片的加载占位也显示两行标题。
 - 在侧栏切换收藏夹，窄屏时在列表上方切换。左侧搜索仅匹配当前收藏夹。右侧「批量管理」支持逐项勾选或全选已加载条目，可将所选内容复制或移动到其他收藏夹，也可取消所选条目的收藏。「清理失效内容」确认后处理整个当前收藏夹。
 
 ## ⬇️ 安装
 
-近期代码优化、验证范围和构建说明见[仓库优化记录](docs/OPTIMIZATION-cmn_CN.md)。
+### Chromium（Chrome、Edge）
 
-### 在线安装
+1. 解压 `extension.zip`。
+2. 在 Chrome 打开 `chrome://extensions/`，在 Edge 打开 `edge://extensions/`，打开开发者模式。
+3. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的目录，再刷新 Bilibili 页面。
 
-> [!TIP]
-> 即使在 Edge 浏览器中，我们也强烈建议您使用 Chrome 应用商店进行安装。在审核速度上，Chrome > 应用商店的审核速度比 Edge 应用商店快得多。
->
-> 此外，BewlyBewly 的 Chrome Web Store 版本将更快地解决和修复关键性错误。
+[Chrome 官方指南](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked) · [Edge 官方指南](https://learn.microsoft.com/en-us/microsoft-edge/extensions/getting-started/extension-sideloading)
 
-> [!IMPORTANT]
-> 如果你的电脑无法访问 Chrome Web Store，你可以尝试去 crx 搜搜下载：<https://www.crxsoso.com/webstore/detail/bbbiejemhfihiooipfcjmjmbfdmobobp>
->
-> 但与此项目在 Chrome Web Store 是否一致且未经修改不太能保证，但是经过测试是正常的，使用时请慎重，出现任何后果本项目概不负责
+### Firefox
 
-- Chrome: <https://chromewebstore.google.com/detail/bewlybewly/bbbiejemhfihiooipfcjmjmbfdmobobp>
-- Edge: <https://chromewebstore.google.com/detail/bewlybewly/bbbiejemhfihiooipfcjmjmbfdmobobp>
-- Firefox: <https://addons.mozilla.org/zh-CN/firefox/addon/bewlybewly/>
+- 在 `about:debugging#/runtime/this-firefox` 打开「此 Firefox」，点击「临时载入附加组件」，选择 `extension-firefox.zip` 或解压目录中的 `manifest.json`。重启后需要重新载入。
+- 长期安装请使用经过 Mozilla 签名的 XPI，在 `about:addons` 中选择「从文件安装附加组件」。本地打包生成的 `extension.xpi` 是未签名的测试包。
 
-#### 对于 Firefox 用户
+[Firefox 临时安装](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/) · [Firefox 签名要求](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
 
-> [!WARNING]
-> 使用 Firefox 浏览器时，请记得启用下面图片中显示的所有权限，以正常使用 BewlyBewly
-
-<br/> <img width="655" alt="enable all bewlybewly permissions on firefox" src="https://github.com/hakadao/BewlyBewly/assets/33394391/9566aed8-040a-4435-a2ec-c61117f8e429">
-
-### 本地安装
-
-[CI](https://github.com/hakadao/BewlyBewly/actions)：使用最新代码自动构建
-
-[Releases](https://github.com/hakadao/BewlyBewly/releases)：稳定版
-
-#### Edge 和 Chrome（推荐）
-
-> 确保您下载了 [extension.zip](https://github.com/hakadao/BewlyBewly/releases)。
-
-在 Edge 浏览器中打开 `edge://extensions` 或者在 Chrome 浏览器中打开 `chrome://extensions` 界面，只需将下载的 `extension.zip` 文件拖放到浏览器中即可完成安装。
-
-<details>
- <summary> Edge & Chrome 的另一种安装方法 </summary>
-
-#### Edge
-
-> 确保您下载了 [extension.zip](https://github.com/hakadao/BewlyBewly/releases) 并解压缩该文件。
-
-1. 在地址栏输入 `edge://extensions/` 并按回车
-2. 打开 `开发者模式` 并点击 `加载已解压的拓展程序` <br/> <img width="655" alt="image" src="https://user-images.githubusercontent.com/33394391/232246901-e3544c16-bde2-480d-b770-ca5242793963.png">
-3. 在浏览器中加载解压后的扩展文件夹
-
-#### Chrome
-
-> 确保您下载了 [extension.zip](https://github.com/hakadao/BewlyBewly/releases) 并解压缩该文件。
-
-1. 在地址栏输入 `chrome://extensions/` 并按回车
-2. 打开 `开发者模式` 并点击 `加载已解压的拓展程序` <br/> <img width="655" alt="Snipaste_2022-03-27_18-17-04" src="https://user-images.githubusercontent.com/33394391/160276882-13da0484-92c1-47dd-add8-7655c5c2bf1c.png">
-3. 在浏览器中加载解压后的扩展文件夹
-
-</details>
+构建和打包命令见[本机开发与构建](docs/LOCAL_DEVELOPMENT-cmn_CN.md#多平台打包)。
 
 ## 🤝 贡献与构建项目
 

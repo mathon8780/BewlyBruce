@@ -3,8 +3,9 @@ import QRCodeVue from 'qrcode.vue'
 import { useToast } from 'vue-toastification'
 import draggable from 'vuedraggable'
 
+import type { HomeTabVisibility } from '~/contentScripts/views/Home/homeTabs'
+import { homeTabs, resolveHomeTabVisibility } from '~/contentScripts/views/Home/homeTabs'
 import { accessKey, settings } from '~/logic'
-import { useMainStore } from '~/stores/mainStore'
 import { getTVLoginQRCode, pollTVLoginQRCode, revokeAccessKey } from '~/utils/authProvider'
 
 import SettingsItem from '../../components/SettingsItem.vue'
@@ -13,7 +14,6 @@ import SearchPage from '../SearchPage/SearchPage.vue'
 import FilterByTitleTable from './components/FilterByTitleTable.vue'
 import FilterByUserTable from './components/FilterByUserTable.vue'
 
-const mainStore = useMainStore()
 const toast = useToast()
 
 const showSearchPageModeSharedSettings = ref<boolean>(false)
@@ -167,20 +167,20 @@ function handleImportFilterByUser() {
   handleImport('user')
 }
 
+const homeTabConfig = computed({
+  get: () => resolveHomeTabVisibility(settings.value.homePageTabVisibilityList),
+  set: (tabs: HomeTabVisibility[]) => { settings.value.homePageTabVisibilityList = tabs },
+})
+
 function resetHomeTabs() {
-  settings.value.homePageTabVisibilityList = mainStore.homeTabs.map((tab) => {
-    return {
-      page: tab.page,
-      visible: true,
-    }
-  })
+  homeTabConfig.value = resolveHomeTabVisibility([])
 }
 
-function handleToggleHomeTab(tab: any) {
-  // Prevent disabling all tabs if there is only one
-  if (settings.value.homePageTabVisibilityList.filter(tab => tab.visible === true).length > 1)
-    tab.visible = !tab.visible
-  else tab.visible = true
+function handleToggleHomeTab(tab: HomeTabVisibility) {
+  if (tab.visible && homeTabConfig.value.filter(item => item.visible).length === 1)
+    return
+  homeTabConfig.value = homeTabConfig.value.map(item =>
+    item.page === tab.page ? { ...item, visible: !item.visible } : item)
 }
 </script>
 
@@ -415,7 +415,7 @@ function handleToggleHomeTab(tab: any) {
 
         <template #bottom>
           <draggable
-            v-model="settings.homePageTabVisibilityList"
+            v-model="homeTabConfig"
             item-key="page"
             :component-data="{ style: 'display: flex; gap: 0.5rem; flex-wrap: wrap;' }"
           >
@@ -433,7 +433,7 @@ function handleToggleHomeTab(tab: any) {
                 }"
                 @click="handleToggleHomeTab(element)"
               >
-                {{ $t(mainStore.homeTabs.find((tab) => tab.page === element.page)?.i18nKey ?? '') }}
+                {{ $t(homeTabs.find((tab) => tab.page === element.page)?.i18nKey ?? '') }}
               </div>
             </template>
           </draggable>

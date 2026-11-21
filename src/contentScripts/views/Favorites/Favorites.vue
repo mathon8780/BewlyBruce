@@ -31,6 +31,8 @@ const categoriesFailed = ref(false)
 const batchMode = ref(false)
 const selectedKeys = reactive(new Set<string>())
 const isUpdating = ref(false)
+const reconciliation = ref<{ source: boolean, destination?: number }>()
+const actionsDisabled = computed(() => isUpdating.value || !!reconciliation.value)
 const transferAction = ref<TransferAction>()
 const targetFolderID = ref<number>()
 const destinationFolders = computed(() => favoriteCategories.value.filter(folder => folder.id !== selectedCategory.value?.id))
@@ -60,6 +62,8 @@ const {
       selectedKeys.clear()
   },
   loadPage: async (current) => {
+    if (!getCSRF())
+      return { items: [], done: true, unauthorized: true }
     const category = selectedCategory.value
     if (!category)
       return { items: [], done: true }
@@ -113,7 +117,7 @@ function closeBatchMode() {
 }
 
 function openTransferDialog(action: TransferAction) {
-  if (isUpdating.value || !selectedKeys.size || !destinationFolders.value.length)
+  if (actionsDisabled.value || !selectedKeys.size || !destinationFolders.value.length)
     return
   targetFolderID.value = undefined
   transferAction.value = action
@@ -139,6 +143,8 @@ onBeforeUnmount(() => {
 })
 
 async function initData() {
+  if (!getCSRF())
+    return
   const token = ++categoryGeneration
   categoriesLoading.value = true
   categoriesFailed.value = false
@@ -174,7 +180,7 @@ async function fetchCategories() {
 }
 
 async function changeCategory(categoryItem: FavoriteCategory) {
-  if (isUpdating.value)
+  if (actionsDisabled.value)
     return
   closeBatchMode()
   selectedCategory.value = categoryItem
@@ -186,7 +192,7 @@ async function changeCategory(categoryItem: FavoriteCategory) {
 }
 
 function handleSearch() {
-  if (isUpdating.value)
+  if (actionsDisabled.value)
     return
   query = keyword.value.trim()
   handleBackToTop()
@@ -204,7 +210,7 @@ function jumpToLoginPage() {
 async function handleClean() {
   const folder = selectedCategory.value
   const csrf = getCSRF()
-  if (isUpdating.value || !folder || !csrf || !confirm(t('favorites.clean_confirm', { folder: folder.title })))
+  if (actionsDisabled.value || !folder || !csrf || !confirm(t('favorites.clean_confirm', { folder: folder.title })))
     return
 
   isUpdating.value = true
@@ -215,20 +221,24 @@ async function handleClean() {
     if (alive) {
       closeBatchMode()
       toast.success(t('favorites.clean_success'))
-      await reloadCurrentFolder()
+      reconciliation.value = { source: true }
     }
   }
   catch {
-    if (alive)
+    if (alive) {
       toast.error(t('favorites.clean_failed'))
+      reconciliation.value = { source: true }
+    }
   }
   finally {
+    if (alive)
+      await reconcileFolders()
     isUpdating.value = false
   }
 }
 
 function handleUnfavorite(keys: string[]) {
-  if (isUpdating.value || !keys.length || !confirm(t('favorites.unfavorite_confirm', { count: keys.length })))
+  if (actionsDisabled.value || !keys.length || !confirm(t('favorites.unfavorite_confirm', { count: keys.length })))
     return
   void runSelectedAction('unfavorite', keys)
 }
@@ -244,24 +254,34 @@ async function runSelectedAction(action: SelectedAction, keys: string[], destina
   const mediaID = selectedCategory.value?.id
   const csrf = getCSRF()
   const mid = getUserID()
-  if (isUpdating.value || !mediaID || !csrf || !keys.length || (action !== 'unfavorite' && (!destinationID || !mid)))
+  if (actionsDisabled.value || !mediaID || !csrf || !keys.length || (action !== 'unfavorite' && (!destinationID || !mid)))
     return
 
   isUpdating.value = true
   const batchSize = 20
   let completed = 0
+  let unconfirmed: string[] = []
   try {
     for (let offset = 0; offset < keys.length; offset += batchSize) {
+      if (!alive)
+        break
+      if (getCSRF() !== csrf || getUserID() !== mid)
+        throw new Error('Favorite account changed')
       const batch = keys.slice(offset, offset + batchSize)
+      unconfirmed = batch
       const resources = batch.join(',')
       const transferParams = { resources, src_media_id: mediaID, tar_media_id: destinationID, mid, csrf }
       const res = action === 'unfavorite'
         ? await api.favorite.patchDelFavoriteResources({ resources, media_id: mediaID, csrf })
         : await api.favorite[action === 'copy' ? 'copyFavoriteResources' : 'moveFavoriteResources'](transferParams)
-      if (res?.code !== 0)
+      if (res?.code !== 0) {
+        if (typeof res?.code === 'number')
+          unconfirmed = []
         throw new Error(res?.message)
+      }
       completed += batch.length
       batch.forEach(key => selectedKeys.delete(key))
+      unconfirmed = []
     }
     if (alive) {
       closeBatchMode()
@@ -270,30 +290,57 @@ async function runSelectedAction(action: SelectedAction, keys: string[], destina
     }
   }
   catch {
-    if (alive)
-      toast.error(t('favorites.batch_failed', { completed, count: keys.length }))
+    if (alive) {
+      closeTransferDialog()
+      unconfirmed.forEach(key => selectedKeys.delete(key))
+      toast.error(t(unconfirmed.length ? 'favorites.batch_unconfirmed' : 'favorites.batch_failed', { completed, count: keys.length }))
+    }
   }
   finally {
-    if (alive && completed > 0) {
-      await Promise.allSettled([
-        action !== 'copy' && reloadCurrentFolder(),
-        destinationID !== undefined && refreshDestinationCount(destinationID),
-      ])
+    if (alive && getUserID() === mid && getCSRF() === csrf && (completed > 0 || unconfirmed.length > 0)) {
+      reconciliation.value = { source: action !== 'copy' || unconfirmed.length > 0, destination: destinationID }
+      await reconcileFolders()
     }
     isUpdating.value = false
   }
 }
 
-async function reloadCurrentFolder() {
-  // 服务端列表已变动，从第一页重新加载以免跳过条目。
-  handleBackToTop()
-  await reset()
+async function reconcileFolders() {
+  const affected = reconciliation.value
+  if (!affected)
+    return
+  try {
+    if (!getCSRF())
+      throw new Error('Favorite session expired')
+    if (affected.source) {
+      // 从第一页刷新，避免删除后沿用已偏移的分页。
+      handleBackToTop()
+      await reset()
+      if (loadFailed.value)
+        throw new Error('Could not refresh source folder')
+    }
+    if (affected.destination !== undefined) {
+      const categories = await fetchCategories()
+      if (alive)
+        favoriteCategories.value = categories
+    }
+    reconciliation.value = undefined
+  }
+  catch {
+    if (alive)
+      toast.error(t('favorites.refresh_failed'))
+  }
 }
 
-async function refreshDestinationCount(destinationID: number) {
-  const destination = (await fetchCategories()).find(folder => folder.id === destinationID)
-  if (alive && destination) {
-    favoriteCategories.value = favoriteCategories.value.map(folder => folder.id === destinationID ? destination : folder)
+async function retryReconciliation() {
+  if (isUpdating.value)
+    return
+  isUpdating.value = true
+  try {
+    await reconcileFolders()
+  }
+  finally {
+    isUpdating.value = false
   }
 }
 
@@ -321,10 +368,10 @@ function isMusic(item: FavoriteResource) {
             class="favorites-search"
             :placeholder="t('favorites.search')"
             :aria-label="t('favorites.search')"
-            :disabled="isUpdating"
+            :disabled="actionsDisabled"
             @enter="handleSearch"
           />
-          <Button type="primary" :aria-label="t('favorites.search')" :disabled="isUpdating" @click="handleSearch">
+          <Button type="primary" :aria-label="t('favorites.search')" :disabled="actionsDisabled" @click="handleSearch">
             <div i-tabler:search aria-hidden="true" />
           </Button>
         </div>
@@ -335,39 +382,42 @@ function isMusic(item: FavoriteResource) {
         >
           <template v-if="batchMode">
             <span text="sm $bew-text-2" aria-live="polite">{{ t('favorites.selected_count', { count: selectedKeys.size }) }}</span>
-            <Button size="small" :disabled="isUpdating || !favoriteResources.length" @click="toggleLoadedSelection">
+            <Button size="small" :disabled="actionsDisabled || !favoriteResources.length" @click="toggleLoadedSelection">
               {{ t(allLoadedSelected ? 'favorites.deselect_loaded' : 'favorites.select_loaded') }}
             </Button>
-            <Button size="small" :disabled="isUpdating || !selectedKeys.size || !destinationFolders.length" @click="openTransferDialog('copy')">
+            <Button size="small" :disabled="actionsDisabled || !selectedKeys.size || !destinationFolders.length" @click="openTransferDialog('copy')">
               {{ t('favorites.copy_to') }}
             </Button>
-            <Button size="small" :disabled="isUpdating || !selectedKeys.size || !destinationFolders.length" @click="openTransferDialog('move')">
+            <Button size="small" :disabled="actionsDisabled || !selectedKeys.size || !destinationFolders.length" @click="openTransferDialog('move')">
               {{ t('favorites.move_to') }}
             </Button>
-            <Button size="small" type="error" :disabled="isUpdating || !selectedKeys.size" @click="handleUnfavorite([...selectedKeys])">
+            <Button size="small" type="error" :disabled="actionsDisabled || !selectedKeys.size" @click="handleUnfavorite([...selectedKeys])">
               {{ t('favorites.unfavorite') }}
             </Button>
-            <Button size="small" :disabled="isUpdating || !selectedCategory" @click="handleClean">
+            <Button size="small" :disabled="actionsDisabled || !selectedCategory" @click="handleClean">
               {{ t('favorites.clean_invalid') }}
             </Button>
-            <Button size="small" type="tertiary" :disabled="isUpdating" @click="closeBatchMode">
+            <Button size="small" type="tertiary" :disabled="actionsDisabled" @click="closeBatchMode">
               {{ t('common.operation.cancel') }}
             </Button>
           </template>
           <Button
             v-else
             type="secondary"
-            :disabled="isUpdating || !selectedCategory"
+            :disabled="actionsDisabled || !selectedCategory"
             @click="batchMode = true"
           >
             {{ t('favorites.batch_manage') }}
           </Button>
         </div>
       </div>
-      <Button v-if="categoriesFailed" @click="initData">
+      <Button v-if="reconciliation && !isUpdating" @click="retryReconciliation">
+        {{ t('common.retry') }}
+      </Button>
+      <Button v-else-if="categoriesFailed" @click="initData">
         {{ $t('common.retry') }}
       </Button>
-      <Button v-else-if="loadFailed" :disabled="isUpdating" @click="load">
+      <Button v-else-if="loadFailed" :disabled="actionsDisabled" @click="load">
         {{ $t('common.retry') }}
       </Button>
       <Empty v-if="favoriteResources.length === 0 && !isFullPageLoading" mb-6 />
@@ -408,7 +458,7 @@ function isMusic(item: FavoriteResource) {
                       text="!white xl"
                       bg="black opacity-60 hover:$bew-error-color-80"
                       :aria-label="t('favorites.unfavorite')"
-                      :disabled="isUpdating"
+                      :disabled="actionsDisabled"
                       @click.prevent.stop="handleUnfavorite([favoriteKey(item)])"
                     >
                       <Tooltip :content="$t('favorites.unfavorite')" placement="bottom" type="dark">
@@ -424,7 +474,7 @@ function isMusic(item: FavoriteResource) {
                 class="favorite-selection"
                 :aria-label="item.title"
                 :aria-pressed="selectedKeys.has(favoriteKey(item))"
-                :disabled="isUpdating"
+                :disabled="actionsDisabled"
                 @click="toggleSelection(favoriteKey(item))"
               >
                 <span class="favorite-selection-indicator" aria-hidden="true">
@@ -435,7 +485,7 @@ function isMusic(item: FavoriteResource) {
           </template>
         </VirtualFeed>
 
-        <Button v-if="windowFull" class="my-4" :disabled="isUpdating" @click="continueWindow">
+        <Button v-if="windowFull" class="my-4" :disabled="actionsDisabled" @click="continueWindow">
           {{ $t('common.continue_browsing') }}
         </Button>
         <!-- no more content -->
@@ -519,7 +569,7 @@ function isMusic(item: FavoriteResource) {
                 type="button"
                 class="category-button"
                 :aria-current="item.id === selectedCategory?.id ? 'true' : undefined"
-                :disabled="isUpdating"
+                :disabled="actionsDisabled"
                 @click="changeCategory(item)"
               >
                 <span>{{ item.title }}</span>
@@ -561,7 +611,7 @@ function isMusic(item: FavoriteResource) {
             name="favorite-destination"
             type="radio"
             :value="folder.id"
-            :disabled="isUpdating"
+            :disabled="actionsDisabled"
             style="accent-color: var(--bew-theme-color)"
             shrink-0
           >

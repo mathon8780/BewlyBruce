@@ -14,7 +14,7 @@ import { calcCurrentTime, calcTimeSince, numFormatter } from '~/utils/dataFormat
 import { getCSRF, removeHttpFromUrl } from '~/utils/main'
 
 import Tooltip from '../Tooltip.vue'
-import { getPreviewUrl } from './preview'
+import { getPreviewSources } from './preview'
 import type { Video } from './types'
 import { getCurrentTime, getCurrentVideoUrl } from './utils'
 import VideoCardAuthorAvatar from './VideoCardAuthor/components/VideoCardAuthorAvatar.vue'
@@ -84,31 +84,38 @@ const isInWatchLater = computed({
   set: value => (cardState.value.isInWatchLater = value),
 })
 const isHover = ref<boolean>(false)
-let mouseEnterTimeout: ReturnType<typeof setTimeout>
-const previewVideoUrl = ref<string>('')
+let mouseEnterTimeout: ReturnType<typeof setTimeout> | undefined
+const previewVideoUrl = ref('')
+const previewReady = ref(false)
+const retriedPreview = ref(false)
+let previewBackups: string[] = []
 const contentVisibility = ref<'auto' | 'visible'>('auto')
 const videoElement = ref<HTMLVideoElement | null>(null)
 const previewEnabled = computed(() => props.showPreview && settings.value.enableVideoPreview)
 
 watch(
-  [isHover, previewEnabled, () => props.video?.bvid, () => props.video?.aid, () => props.video?.cid],
+  [isHover, previewEnabled, removed, retriedPreview],
   async (_, __, onCleanup) => {
-    const controller = new AbortController()
-    onCleanup(() => controller.abort())
+    previewReady.value = false
     const video = props.video
     if (
       !video
       || !isHover.value
       || !previewEnabled.value
+      || removed.value
       || previewVideoUrl.value
       || !(video.aid || video.bvid)
     ) {
       return
     }
+    const controller = new AbortController()
+    onCleanup(() => controller.abort())
     try {
-      const url = await getPreviewUrl(video, controller.signal)
-      if (!controller.signal.aborted && isHover.value)
+      const [url, ...backups] = await getPreviewSources(video, controller.signal)
+      if (!controller.signal.aborted && isHover.value && previewEnabled.value && !removed.value) {
         previewVideoUrl.value = url
+        previewBackups = backups
+      }
     }
     catch {
       // Preview is optional; a later hover can retry a failed or timed-out request.
@@ -119,19 +126,43 @@ watch(
   [() => props.video?.bvid, () => props.video?.aid, () => props.video?.id, () => props.video?.cid],
   () => {
     previewVideoUrl.value = ''
+    previewBackups = []
     videoCurrentTime.value = null
-    handelMouseLeave()
+    stopPreview()
   },
   { flush: 'sync' },
 )
 
 function stopPreview() {
   clearTimeout(mouseEnterTimeout)
+  contentVisibility.value = 'auto'
   isHover.value = false
+  previewReady.value = false
+  retriedPreview.value = false
   videoElement.value?.pause()
 }
 onDeactivated(stopPreview)
 onBeforeUnmount(stopPreview)
+
+function isCurrentPreview(event: Event) {
+  const player = videoElement.value
+  return isHover.value && previewEnabled.value && !removed.value
+    && player && event.currentTarget === player && player.getAttribute('src') === previewVideoUrl.value
+}
+
+function showPreviewFrame(event: Event) {
+  if (isCurrentPreview(event))
+    previewReady.value = true
+}
+
+function handlePreviewError(event: Event) {
+  if (!isCurrentPreview(event))
+    return
+  previewReady.value = false
+  previewVideoUrl.value = previewBackups.shift() ?? ''
+  if (!previewVideoUrl.value && !retriedPreview.value)
+    retriedPreview.value = true
+}
 
 function toggleWatchLater() {
   if (!props.video)
@@ -176,12 +207,6 @@ function handleMouseEnter() {
     },
     settings.value.hoverVideoCardDelayed ? 1200 : 500,
   )
-}
-
-function handelMouseLeave() {
-  contentVisibility.value = 'auto'
-  isHover.value = false
-  clearTimeout(mouseEnterTimeout)
 }
 
 function handleClick(event: MouseEvent) {
@@ -278,7 +303,7 @@ provide('getVideoType', () => props.type!)
           type="videoCard"
           :custom-click-event="settings.videoCardLinkOpenMode === 'drawer'"
           @mouseenter="handleMouseEnter"
-          @mouseleave="handelMouseLeave"
+          @mouseleave="stopPreview"
           @click="handleClick"
         >
           <!-- Cover -->
@@ -335,18 +360,23 @@ provide('getVideoType', () => props.type!)
               <video
                 v-if="previewVideoUrl && isHover"
                 ref="videoElement"
+                :key="previewVideoUrl"
                 :src="previewVideoUrl"
                 autoplay
+                loop
                 muted
+                playsinline
                 :controls="settings.enableVideoCtrlBarOnVideoCard"
-                :style="{ pointerEvents: settings.enableVideoCtrlBarOnVideoCard ? 'auto' : 'none' }"
+                :class="{ 'opacity-0': !previewReady }"
+                :style="{ pointerEvents: previewReady && settings.enableVideoCtrlBarOnVideoCard ? 'auto' : 'none' }"
                 pos="absolute top-0 left-0"
                 w-full
                 aspect-video
                 rounded="$bew-radius"
                 bg-black
-                @error="previewVideoUrl = ''"
-                @mouseenter="handleMouseEnter"
+                @loadeddata="showPreviewFrame"
+                @playing="showPreviewFrame"
+                @error="handlePreviewError"
               />
             </Transition>
 

@@ -2,7 +2,7 @@ import { useStorageLocal } from '~/composables/useStorageLocal'
 
 import type { Settings } from './settings'
 import { originalSettings } from './settings'
-import { needsWallpaperMigration, wallpaperSettingsSerializer } from './wallpaperStorage'
+import { wallpaperMigrationFields, wallpaperSettingsSerializer } from './wallpaperStorage'
 
 export type { Settings } from './settings'
 export { originalSettings } from './settings'
@@ -13,8 +13,9 @@ export const accessKey = useStorageLocal('accessKey', '')
 export const settings = useStorageLocal('settings', ref<Settings>(structuredClone(originalSettings)), {
   mergeDefaults: true,
   debounce: 200,
+  writeDefaults: false,
   serializer: wallpaperSettingsSerializer,
-  migrate: needsWallpaperMigration,
+  migrate: wallpaperMigrationFields,
 })
 
 export type GridLayoutType = 'adaptive' | 'twoColumns' | 'oneColumn'

@@ -1,4 +1,11 @@
+import browser from 'webextension-polyfill'
+
+import { SEARCH_HISTORY_WRITE_PORT } from '~/constants/globalEvents'
+
 const SEARCH_HISTORY_LIMIT = 20
+const bridgeOrigin = 'https://s1.hdslb.com'
+const bridgePath = '/bfs/seed/jinkela/short/cols/iframe.html'
+const historyKey = 'search_history:search_history'
 
 export interface HistoryItem {
   value: string
@@ -22,127 +29,132 @@ export interface SuggestionResponse {
   stoken: string
 }
 
-function historySort(historyItems: HistoryItem[]) {
-  historyItems.sort((a, b) => b.timestamp - a.timestamp)
-  return historyItems
-}
-
-export interface BilibiliStorageEvent {
+interface StorageResponse {
   type: 'COLS_RES'
-  id?: string
+  id: string
   key: string
-  value: string
+  value?: string | null
 }
 
-class BilibiliStorageProvider {
-  static BILIBILI_HISTORY_KEY = 'search_history:search_history'
-
-  private async operate(type: 'COLS_GET'): Promise<BilibiliStorageEvent | undefined>
-  private async operate(type: 'COLS_SET', value: string): Promise<void>
-  private async operate(type: 'COLS_CLR'): Promise<void>
-  private async operate(type: 'COLS_GET' | 'COLS_CLR' | 'COLS_SET', value?: string): Promise<BilibiliStorageEvent | void> {
-    // Resolve each time: the host may replace the iframe after navigation.
-    const iframe = Array.from(document.getElementsByTagName('iframe')).find(i => i.src.startsWith('https://s1.hdslb.com/bfs/seed/jinkela/short/cols/iframe.html'))
-    const target = iframe?.contentWindow
-    if (!target)
-      return
-    const origin = 'https://s1.hdslb.com'
-    const key = BilibiliStorageProvider.BILIBILI_HISTORY_KEY
-    if (type === 'COLS_GET') {
-      return new Promise<BilibiliStorageEvent | undefined>((resolve) => {
-        let timer: ReturnType<typeof setTimeout>
-        let onMessage: (event: MessageEvent<BilibiliStorageEvent>) => void
-        const finish = (result?: BilibiliStorageEvent) => {
-          clearTimeout(timer)
-          window.removeEventListener('message', onMessage)
-          resolve(result)
-        }
-        onMessage = (event: MessageEvent<BilibiliStorageEvent>) => {
-          if (event.origin === origin && event.source === target && event.data?.type === 'COLS_RES' && event.data.key === key)
-            finish(event.data)
-        }
-        timer = setTimeout(() => finish(), 2000)
-        // Listen before posting, and ignore unrelated messages without removing the listener.
-        window.addEventListener('message', onMessage)
-        try {
-          target.postMessage({ type, key }, origin)
-        }
-        catch {
-          finish()
-        }
-      })
+function bridgeRequest(target: Window, signal: AbortSignal, type: 'COLS_GET' | 'COLS_SET' | 'COLS_RM', value?: string) {
+  signal.throwIfAborted()
+  const id = crypto.randomUUID()
+  return new Promise<StorageResponse>((resolve, reject) => {
+    function cleanup() {
+      window.removeEventListener('message', receive)
+      signal.removeEventListener('abort', abort)
     }
-    target.postMessage({ type, key: type === 'COLS_CLR' ? 'search_history' : key, value }, origin)
-  }
-
-  getSearchHistory() {
-    return this.operate('COLS_GET')
-  }
-
-  clearSearchHistory() {
-    return this.operate('COLS_CLR')
-  }
-
-  addSearchHistory(value: string) {
-    return this.operate('COLS_SET', value)
-  }
-
-  removeSearchHistory(value: string) {
-    return this.operate('COLS_SET', value)
-  }
+    function receive(event: MessageEvent<StorageResponse>) {
+      if (event.origin === bridgeOrigin && event.source === target && event.data?.type === 'COLS_RES'
+        && event.data.id === id && event.data.key === historyKey) {
+        cleanup()
+        resolve(event.data)
+      }
+    }
+    function abort() {
+      cleanup()
+      reject(signal.reason)
+    }
+    window.addEventListener('message', receive)
+    signal.addEventListener('abort', abort, { once: true })
+    try {
+      target.postMessage({ type, id, key: historyKey, value }, bridgeOrigin)
+    }
+    catch (error) {
+      cleanup()
+      reject(error)
+    }
+  })
 }
 
-const provider = new BilibiliStorageProvider()
+async function withBridge<T>(signal: AbortSignal, action: (target: Window) => Promise<T>): Promise<T> {
+  signal.throwIfAborted()
+  const existing = Array.from(document.getElementsByTagName('iframe')).find((frame) => {
+    const url = new URL(frame.src || 'about:blank')
+    return url.origin === bridgeOrigin && url.pathname === bridgePath && frame.contentWindow
+  })
+  if (existing?.contentWindow)
+    return action(existing.contentWindow)
 
-export async function getSearchHistory(): Promise<HistoryItem[]> {
-  const e = await provider.getSearchHistory()
-
-  if (!e)
-    return []
-
+  const frame = document.createElement('iframe')
+  frame.hidden = true
+  frame.src = bridgeOrigin + bridgePath
   try {
-    const history = JSON.parse(e.value)
-    return Array.isArray(history)
-      ? historySort(history.filter(item => typeof item?.value === 'string' && typeof item?.timestamp === 'number')).slice(0, SEARCH_HISTORY_LIMIT)
-      : []
+    await new Promise<void>((resolve, reject) => {
+      frame.addEventListener('load', () => resolve(), { once: true, signal })
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      document.body.appendChild(frame)
+    })
+    if (!frame.contentWindow)
+      throw new Error('Search history frame unavailable')
+    return await action(frame.contentWindow)
   }
-  catch {
+  finally {
+    frame.remove()
+  }
+}
+
+async function readHistory(target: Window, signal: AbortSignal): Promise<HistoryItem[]> {
+  const { value } = await bridgeRequest(target, signal, 'COLS_GET')
+  if (value === null)
     return []
+  if (typeof value !== 'string')
+    throw new Error('Search history read failed')
+  const items: unknown = JSON.parse(value)
+  return Array.isArray(items)
+    ? items.filter(item => typeof item?.value === 'string' && Number.isFinite(item?.timestamp))
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, SEARCH_HISTORY_LIMIT)
+    : []
+}
+
+export function getSearchHistory() {
+  const signal = AbortSignal.timeout(2000)
+  return withBridge(signal, target => readHistory(target, signal))
+}
+
+async function updateHistory(update: (items: HistoryItem[]) => HistoryItem[], clear = false) {
+  const port = browser.runtime.connect({ name: SEARCH_HISTORY_WRITE_PORT })
+  const controller = new AbortController()
+  const { signal } = controller
+  const timer = setTimeout(() => controller.abort(new Error('Search history timed out')), 3500)
+  const disconnect = () => controller.abort(new Error('Search history connection closed'))
+  port.onDisconnect.addListener(disconnect)
+  try {
+    await new Promise<void>((resolve, reject) => {
+      port.onMessage.addListener((granted) => {
+        if (granted === true)
+          resolve()
+      })
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    })
+    return await withBridge(signal, async (target) => {
+      const items = clear ? [] : update(await readHistory(target, signal))
+      await bridgeRequest(target, signal, clear ? 'COLS_RM' : 'COLS_SET', JSON.stringify(items))
+      // 原站成功和异常都返回确认消息，需要读回结果。
+      const stored = await readHistory(target, signal)
+      if (JSON.stringify(stored) !== JSON.stringify(items))
+        throw new Error('Search history write could not be verified')
+      return stored
+    })
+  }
+  finally {
+    clearTimeout(timer)
+    port.onDisconnect.removeListener(disconnect)
+    port.disconnect()
   }
 }
 
-export async function addSearchHistory(historyItem: HistoryItem) {
-  let history = await getSearchHistory()
-
-  let hasSameValue = false
-  history.forEach((item) => {
-    if (item.value === historyItem.value) {
-      item.timestamp = historyItem.timestamp
-      hasSameValue = true
-    }
-  })
-  if (!hasSameValue)
-    history.unshift(historyItem)
-
-  // if out of limit, remove overflow items
-  history = history.filter((item, index) => {
-    if (index < SEARCH_HISTORY_LIMIT)
-      return item
-    else
-      return false
-  })
-
-  await provider.addSearchHistory(JSON.stringify(history))
-  return history
+export function addSearchHistory(item: HistoryItem) {
+  return updateHistory(items => [item, ...items.filter(entry => entry.value !== item.value)]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, SEARCH_HISTORY_LIMIT))
 }
 
-export async function removeSearchHistory(value: string) {
-  let history = await getSearchHistory()
-  history = history.filter(item => item.value !== value)
-  await provider.removeSearchHistory(JSON.stringify(history))
-  return history
+export function removeSearchHistory(value: string) {
+  return updateHistory(items => items.filter(item => item.value !== value))
 }
 
-export async function clearAllSearchHistory() {
-  return provider.clearSearchHistory()
+export function clearAllSearchHistory() {
+  return updateHistory(() => [], true)
 }

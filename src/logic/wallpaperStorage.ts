@@ -1,6 +1,8 @@
 import md5 from 'md5'
 import { storage } from 'webextension-polyfill'
 
+import { InvalidStoredValueError } from '~/composables/useStorageLocal'
+
 import type { Settings } from './settings'
 import { parseSettings } from './settings'
 
@@ -99,14 +101,17 @@ export async function cleanupWallpapers(): Promise<void> {
   persistedImages.clear()
 }
 
-export function needsWallpaperMigration(raw: string): boolean {
+export function wallpaperMigrationFields(raw: string): (keyof Settings)[] {
   const value = JSON.parse(raw)
-  return [
-    value.wallpaper,
-    value.searchPageWallpaper,
-    value.locallyUploadedWallpaper?.url,
-    value.locallyUploadedWallpaper?.thumbnail,
-  ].some(url => typeof url === 'string' && url.startsWith('data:image/'))
+  const fields: (keyof Settings)[] = []
+  for (const field of ['wallpaper', 'searchPageWallpaper'] as const) {
+    if (typeof value[field] === 'string' && value[field].startsWith('data:image/'))
+      fields.push(field)
+  }
+  const local = value.locallyUploadedWallpaper
+  if ([local?.url, local?.thumbnail].some(url => typeof url === 'string' && url.startsWith('data:image/')))
+    fields.push('locallyUploadedWallpaper')
+  return fields
 }
 
 /**
@@ -117,7 +122,13 @@ export function needsWallpaperMigration(raw: string): boolean {
  */
 export const wallpaperSettingsSerializer = {
   async read(raw: string): Promise<Settings> {
-    const value = parseSettings(JSON.parse(raw))
+    let value: Settings
+    try {
+      value = parseSettings(JSON.parse(raw))
+    }
+    catch (error) {
+      throw new InvalidStoredValueError('Stored settings are invalid', { cause: error })
+    }
     for (const field of ['wallpaper', 'searchPageWallpaper'] as const) {
       if (typeof value[field] === 'string')
         value[field] = await loadImage(value[field])

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { useDateFormat } from '@vueuse/core'
+import { formatDate } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 
 import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useBewlyApp } from '~/composables/useAppProvider'
@@ -14,6 +15,7 @@ import { calcCurrentTime } from '~/utils/dataFormatter'
 import { getCSRF, removeHttpFromUrl } from '~/utils/main'
 
 const { t } = useI18n()
+const toast = useToast()
 const { setActivatedCover } = useMainStore()
 
 const isLoading = ref(false)
@@ -23,19 +25,22 @@ const keyword = ref<string>()
 const historyStatus = ref<boolean>()
 const loadFailed = ref(false)
 const windowFull = ref(false)
+const isUpdating = ref(false)
+const deletedKeys = new Set<HistoryItem['kid']>()
 const { handlePageRefresh, handleReachBottom, haveScrollbar, handleBackToTop } = useBewlyApp()
 const generation = requestGeneration()
 const WINDOW_SIZE = 600
 let currentPageNum = 1
 let cursor = 0
 let query = ''
+let pauseStatusChanged = false
 let alive = true
 let pending: HistoryItem[] = []
 const HistoryBusiness = computed(() => Business)
 
 onMounted(() => {
   void getHistoryList()
-  getHistoryPauseStatus()
+  void getHistoryPauseStatus()
   handleReachBottom.value = loadMore
   handlePageRefresh.value = resetHistory
 })
@@ -54,7 +59,10 @@ function loadMore() {
 }
 
 async function resetHistory() {
+  if (!getCSRF())
+    return
   generation.invalidate()
+  deletedKeys.clear()
   isLoading.value = false
   historyList.value = []
   pending = []
@@ -66,7 +74,7 @@ async function resetHistory() {
 }
 
 async function getHistoryList() {
-  if (!alive || isLoading.value || noMoreContent.value || windowFull.value)
+  if (!alive || !getCSRF() || isLoading.value || noMoreContent.value || windowFull.value)
     return
   const token = generation.capture()
   const current = () => alive && generation.isCurrent(token)
@@ -90,7 +98,7 @@ async function getHistoryList() {
           cursor = items[items.length - 1].view_at
         const seen = new Set(historyList.value.map(item => item.kid))
         const added = items.filter((item) => {
-          if (seen.has(item.kid))
+          if (seen.has(item.kid) || deletedKeys.has(item.kid))
             return false
           seen.add(item.kid)
           return true
@@ -135,15 +143,38 @@ function handleSearch() {
   void resetHistory()
 }
 
+async function runHistoryAction(action: () => Promise<{ code: number, message?: string }>, onSuccess: () => void) {
+  if (isUpdating.value || !getCSRF())
+    return
+  isUpdating.value = true
+  try {
+    const response = await action()
+    if (response.code !== 0)
+      throw new Error(response.message)
+    if (alive)
+      onSuccess()
+  }
+  catch {
+    if (alive)
+      toast.error(t('common.operation_failed'))
+  }
+  finally {
+    isUpdating.value = false
+  }
+}
+
 function deleteHistoryItem(historyItem: HistoryItem) {
-  api.history.deleteHistoryItem({
-    kid: `${historyItem.history.business}_${historyItem.history.oid}`,
-    csrf: getCSRF(),
-  })
-    .then((res) => {
-      if (res.code === 0)
-        historyList.value = historyList.value.filter(item => item.kid !== historyItem.kid)
-    })
+  void runHistoryAction(
+    () => api.history.deleteHistoryItem({
+      kid: `${historyItem.history.business}_${historyItem.history.oid}`,
+      csrf: getCSRF(),
+    }),
+    () => {
+      deletedKeys.add(historyItem.kid)
+      historyList.value = historyList.value.filter(item => item.kid !== historyItem.kid)
+      pending = pending.filter(item => item.kid !== historyItem.kid)
+    },
+  )
 }
 
 /**
@@ -184,39 +215,45 @@ function getHistoryItemCover(item: HistoryItem) {
   return removeHttpFromUrl(item.cover)
 }
 
-function getHistoryPauseStatus() {
-  api.history.getHistoryPauseStatus()
-    .then((res) => {
-      if (res.code === 0)
-        historyStatus.value = res.data
-    })
+async function getHistoryPauseStatus() {
+  if (!getCSRF())
+    return
+  try {
+    const res = await api.history.getHistoryPauseStatus()
+    if (res.code !== 0)
+      throw new Error(res.message)
+    if (alive && !pauseStatusChanged)
+      historyStatus.value = res.data
+  }
+  catch {
+    if (alive)
+      toast.error(t('common.load_failed'))
+  }
 }
 
 function setHistoryPauseStatus(isPause: boolean) {
-  api.history.setHistoryPauseStatus({
-    csrf: getCSRF(),
-    switch: isPause,
-  })
-    .then((res) => {
-      if (res.code === 0)
-        getHistoryPauseStatus()
-    })
+  void runHistoryAction(
+    () => api.history.setHistoryPauseStatus({ csrf: getCSRF(), switch: isPause }),
+    () => {
+      pauseStatusChanged = true
+      historyStatus.value = isPause
+    },
+  )
 }
 
 function clearAllHistory() {
-  api.history.clearAllHistory({
-    csrf: getCSRF(),
-  })
-    .then((res) => {
-      if (alive && res.code === 0) {
-        generation.invalidate()
-        historyList.value = []
-        pending = []
-        isLoading.value = false
-        windowFull.value = false
-        noMoreContent.value = true
-      }
-    })
+  void runHistoryAction(
+    () => api.history.clearAllHistory({ csrf: getCSRF() }),
+    () => {
+      generation.invalidate()
+      deletedKeys.clear()
+      historyList.value = []
+      pending = []
+      isLoading.value = false
+      windowFull.value = false
+      noMoreContent.value = true
+    },
+  )
 }
 
 function handleClearAllWatchHistory() {
@@ -261,13 +298,8 @@ function handleMouseEnter(item: HistoryItem) {
       <!-- historyList -->
       <VirtualFeed :items="historyList" :item-key="item => item.kid">
         <template #default="{ item: historyItem, index }">
-          <ALink
-            type="videoCard"
-            :href="getHistoryUrl(historyItem)"
-            block
-            class="group"
-            flex
-            cursor-pointer
+          <div
+            class="group" flex
             @mouseenter="handleMouseEnter(historyItem)"
           >
             <!-- time slot -->
@@ -303,8 +335,7 @@ function handleMouseEnter(item: HistoryItem) {
                 duration-300
               >
                 {{
-                  useDateFormat(historyItem.view_at * 1000, 'YYYY-MM-DD HH:mm:ss')
-                    .value
+                  formatDate(new Date(historyItem.view_at * 1000), 'YYYY-MM-DD HH:mm:ss')
                 }}
               </div>
             </div>
@@ -318,6 +349,15 @@ function handleMouseEnter(item: HistoryItem) {
               p-2 m-1
               content-visibility-auto
             >
+              <ALink
+                v-if="getHistoryUrl(historyItem)"
+                type="videoCard"
+                :href="getHistoryUrl(historyItem)"
+                :aria-label="historyItem.show_title || historyItem.title"
+                pos="absolute inset-0"
+                z-1
+                rounded="$bew-radius"
+              />
               <!-- Cover -->
               <div
                 pos="relative"
@@ -396,19 +436,16 @@ function handleMouseEnter(item: HistoryItem) {
               <!-- Description -->
               <div flex justify-between w-full h-full>
                 <div flex="~ col">
-                  <a
-                    :href="`${getHistoryUrl(historyItem)}`" target="_blank"
-                    :title="historyItem.show_title ? historyItem.show_title : historyItem.title"
+                  <h3
+                    class="keep-two-lines fixed-title-height"
+                    overflow="hidden"
+                    text="lg overflow-ellipsis"
+                    :title="historyItem.show_title || historyItem.title"
                   >
-                    <h3
-                      class="keep-two-lines fixed-title-height"
-                      overflow="hidden"
-                      text="lg overflow-ellipsis"
-                    >
-                      {{ historyItem.show_title ? historyItem.show_title : historyItem.title }}
-                    </h3>
-                  </a>
+                    {{ historyItem.show_title || historyItem.title }}
+                  </h3>
                   <a
+                    relative z-2
                     un-text="$bew-text-2 sm"
                     m="t-4 b-2"
                     flex="~ items-center"
@@ -470,8 +507,7 @@ function handleMouseEnter(item: HistoryItem) {
                     </span>
                     <span>
                       {{
-                        useDateFormat(historyItem.view_at * 1000, 'YYYY-MM-DD HH:mm:ss')
-                          .value
+                        formatDate(new Date(historyItem.view_at * 1000), 'YYYY-MM-DD HH:mm:ss')
                       }}
                     </span>
                   </div>
@@ -480,7 +516,10 @@ function handleMouseEnter(item: HistoryItem) {
                 <button
                   text="2xl $bew-text-3"
                   hover:color="$bew-theme-color"
-                  opacity-0 group-hover:opacity-100
+                  relative z-2
+                  opacity-0 group-hover:opacity-100 focus-visible:opacity-100
+                  :aria-label="t('common.operation.delete')"
+                  :disabled="isUpdating"
                   p-2
                   duration-300
                   @click.prevent.stop="deleteHistoryItem(historyItem)"
@@ -489,7 +528,7 @@ function handleMouseEnter(item: HistoryItem) {
                 </button>
               </div>
             </section>
-          </ALink>
+          </div>
         </template>
       </VirtualFeed>
       <Button v-if="windowFull && (!noMoreContent || pending.length)" class="my-4" @click="continueWindow">
@@ -531,6 +570,7 @@ function handleMouseEnter(item: HistoryItem) {
           style="
             --b-button-shadow: var(--bew-shadow-1);
           "
+          :disabled="isUpdating"
           @click="handleClearAllWatchHistory"
         >
           <template #left>
@@ -544,6 +584,7 @@ function handleMouseEnter(item: HistoryItem) {
           style="
             --b-button-shadow: var(--bew-shadow-1);
           "
+          :disabled="isUpdating"
           @click="handlePauseWatchHistory"
         >
           <template #left>
@@ -557,6 +598,7 @@ function handleMouseEnter(item: HistoryItem) {
           style="
             --b-button-shadow: var(--bew-shadow-1);
           "
+          :disabled="isUpdating"
           @click="handleTurnOnWatchHistory"
         >
           <template #left>

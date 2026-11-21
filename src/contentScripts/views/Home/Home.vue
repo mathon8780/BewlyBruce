@@ -4,18 +4,16 @@ import { useThrottleFn } from '@vueuse/core'
 import { useBewlyApp } from '~/composables/useAppProvider'
 import { TOP_BAR_VISIBILITY_CHANGE } from '~/constants/globalEvents'
 import { gridLayout, settings } from '~/logic'
-import type { HomeTab } from '~/stores/mainStore'
-import { useMainStore } from '~/stores/mainStore'
 import emitter from '~/utils/mitt'
 
+import type { HomeTab } from './homeTabs'
+import { homeTabs, resolveHomeTabVisibility } from './homeTabs'
 import type { GridLayoutIcon } from './types'
 import { HomeSubPage } from './types'
 
-const mainStore = useMainStore()
 const { handleBackToTop, scrollbarRef } = useBewlyApp()
 const handleThrottledBackToTop = useThrottleFn((targetScrollTop: number = 0) => handleBackToTop(targetScrollTop), 1000)
 
-const activatedPage = ref<HomeSubPage>(HomeSubPage.ForYou)
 const pages = {
   [HomeSubPage.ForYou]: defineAsyncComponent(() => import('./components/ForYou.vue')),
   [HomeSubPage.Following]: defineAsyncComponent(() => import('./components/Following.vue')),
@@ -27,7 +25,13 @@ const pages = {
 const showSearchPageMode = ref<boolean>(false)
 const shouldMoveTabsUp = ref<boolean>(false)
 const tabContentLoading = ref<boolean>(false)
-const currentTabs = ref<HomeTab[]>([])
+const tabsByPage = new Map(homeTabs.map(tab => [tab.page, tab]))
+const currentTabs = computed(() => settings.hydrated.value
+  ? resolveHomeTabVisibility(settings.value.homePageTabVisibilityList)
+      .filter(tab => tab.visible)
+      .map(tab => tabsByPage.get(tab.page)!)
+  : [])
+const activatedPage = ref(currentTabs.value[0]?.page)
 const tabPageRef = ref()
 const topBarVisibility = ref<boolean>(false)
 const gridLayoutIcons = computed((): GridLayoutIcon[] => {
@@ -38,34 +42,16 @@ const gridLayoutIcons = computed((): GridLayoutIcon[] => {
   ]
 })
 
-// use Json stringify to watch the changes of the array item properties
-watch(() => JSON.stringify(settings.value.homePageTabVisibilityList), () => {
-  currentTabs.value = computeTabs()
-})
-
-function computeTabs(): HomeTab[] {
-  // if homePageTabVisibilityList not fresh , set it to default
-  if (!settings.value.homePageTabVisibilityList.length || settings.value.homePageTabVisibilityList.length !== mainStore.homeTabs.length)
-    settings.value.homePageTabVisibilityList = mainStore.homeTabs.map(tab => ({ page: tab.page, visible: true }))
-
-  const targetTabs: HomeTab[] = []
-
-  for (const tab of settings.value.homePageTabVisibilityList) {
-    tab.visible && targetTabs.push({
-      i18nKey: (mainStore.homeTabs.find(defaultTab => defaultTab.page === tab.page) || {})?.i18nKey || tab.page,
-      page: tab.page,
-    })
+watch(currentTabs, (tabs) => {
+  if (!tabs.some(tab => tab.page === activatedPage.value)) {
+    tabContentLoading.value = false
+    activatedPage.value = tabs[0]?.page
   }
-
-  return targetTabs
-}
+})
 
 onMounted(() => {
   showSearchPageMode.value = true
   emitter.on(TOP_BAR_VISIBILITY_CHANGE, handleTopBarVisibility)
-
-  currentTabs.value = computeTabs()
-  activatedPage.value = currentTabs.value[0].page
 })
 
 function handleTopBarVisibility(val: boolean) {
@@ -200,7 +186,7 @@ function toggleTabContentLoading(loading: boolean) {
         :class="{ hide: shouldMoveTabsUp }"
       >
         <section
-          v-if="!(!settings.alwaysShowTabsOnHomePage && currentTabs.length === 1)"
+          v-if="currentTabs.length > 1 || (currentTabs.length === 1 && settings.alwaysShowTabsOnHomePage)"
           style="backdrop-filter: var(--bew-filter-glass-1)"
           bg="$bew-elevated" p-1
           w="[calc(100vw-280px)]" max-w="fit"
@@ -266,7 +252,9 @@ function toggleTabContentLoading(loading: boolean) {
       <Transition name="page-fade" :css="activatedPage !== HomeSubPage.SubscribedSeries">
         <KeepAlive include="ForYou,SubscribedSeries" :max="2">
           <Component
-            :is="pages[activatedPage]" :key="activatedPage"
+            :is="pages[activatedPage]"
+            v-if="activatedPage"
+            :key="activatedPage"
             ref="tabPageRef"
             :grid-layout="gridLayout.home"
             :top-bar-visibility="topBarVisibility"

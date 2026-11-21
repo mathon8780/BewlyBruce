@@ -4,132 +4,56 @@ import { onKeyStroke } from '@vueuse/core'
 import { useBewlyApp } from '~/composables/useAppProvider'
 import { settings } from '~/logic'
 
-// TODO: support shortcuts like `Ctrl+Alt+T` to open in new tab, `Esc` to close
-
 const props = defineProps<{
   url: string
 }>()
-
-const emit = defineEmits<{
-  (e: 'close'): void
-}>()
-
+const emit = defineEmits<{ (e: 'close'): void }>()
 const { mainAppRef } = useBewlyApp()
-
 const show = ref(false)
-const iframeRef = ref<HTMLIFrameElement | null>(null)
-const currentUrl = ref<string>(props.url || 'https://message.bilibili.com/')
+const drawerRef = ref<HTMLElement>()
+const iframeRef = ref<HTMLIFrameElement>()
 const showIframe = ref(false)
-const delayCloseTimer = ref<NodeJS.Timeout | null>(null)
+const currentUrl = computed(() => props.url || 'https://message.bilibili.com/')
+const isEscPressed = ref(false)
+let escPressedTimer: ReturnType<typeof setTimeout> | undefined
 
-onMounted(() => {
-  handleOpen()
-})
-
-onActivated(() => {
-  handleOpen()
-})
-
-const beforeUrl = ref<string>('')
-function handleOpen() {
+onMounted(async () => {
   show.value = true
-  if (beforeUrl.value !== props.url) {
-    currentUrl.value = props.url
-    beforeUrl.value = props.url
-  }
-  nextTick(() => {
-    iframeRef.value?.focus()
-  })
-}
-
-onBeforeUnmount(() => {
-  releaseIframeResources()
+  await nextTick()
+  drawerRef.value?.focus()
 })
+onBeforeUnmount(() => clearTimeout(escPressedTimer))
 
-async function handleClose() {
-  if (delayCloseTimer.value) {
-    clearTimeout(delayCloseTimer.value)
-  }
-  // await releaseIframeResources()
+function handleClose() {
+  clearTimeout(escPressedTimer)
   show.value = false
-  delayCloseTimer.value = setTimeout(() => {
-    emit('close')
-  }, 300)
-}
-
-async function releaseIframeResources() {
-  // Clear iframe content
-  currentUrl.value = 'about:blank'
-  /**
-   * eg: When use 'iframeRef.value?.contentWindow?.document' of t.bilibili.com iframe on bilibili.com, there may be cross domain issues
-   * set the src to 'about:blank' to avoid this issue, it also can release the memory
-   */
-  if (iframeRef.value) {
-    iframeRef.value.src = 'about:blank'
-  }
-  await nextTick()
-  iframeRef.value?.contentWindow?.close()
-
-  // Remove iframe from the DOM
-  iframeRef.value?.parentNode?.removeChild(iframeRef.value)
-  await nextTick()
-
-  // Nullify the reference
-  iframeRef.value = null
 }
 
 function handleOpenInNewTab() {
-  if (iframeRef.value) {
-    try {
-      window.open(iframeRef.value.contentWindow?.location.href.replace(/\/$/, ''), '_blank')
-    }
-    catch {
-      window.open('https://message.bilibili.com/', '_blank')
-    }
-    handleClose()
+  let url = currentUrl.value
+  try {
+    url = iframeRef.value?.contentWindow?.location.href || url
   }
+  catch {
+    // 跨域时沿用当前抽屉的通知地址。
+  }
+  window.open(url, '_blank')
+  handleClose()
 }
 
-const isEscPressed = ref<boolean>(false)
-const escPressedTimer = ref<NodeJS.Timeout | null>(null)
-const disableEscPress = ref<boolean>(false)
-
-/**
- * Not working, idk why
- */
-nextTick(() => {
-  onKeyStroke('Escape', (e: KeyboardEvent) => {
-    e.preventDefault()
-    if (settings.value.closeDrawerWithoutPressingEscAgain) {
-      clearTimeout(escPressedTimer.value!)
-      handleClose()
-      return
-    }
-    if (disableEscPress.value)
-      return
-    if (isEscPressed.value) {
-      handleClose()
-    }
-    else {
-      isEscPressed.value = true
-      if (escPressedTimer.value) {
-        clearTimeout(escPressedTimer.value)
-      }
-      escPressedTimer.value = setTimeout(() => {
-        isEscPressed.value = false
-      }, 1300)
-    }
-  }, { target: iframeRef.value?.contentWindow })
+onKeyStroke('Escape', (event) => {
+  if (!show.value)
+    return
+  event.preventDefault()
+  if (settings.value.closeDrawerWithoutPressingEscAgain || isEscPressed.value) {
+    handleClose()
+    return
+  }
+  isEscPressed.value = true
+  escPressedTimer = setTimeout(() => {
+    isEscPressed.value = false
+  }, 1300)
 })
-
-// const keys = useMagicKeys()
-// const ctrlAltT = keys['Ctrl+Alt+T']
-
-// watch(() => ctrlAltT, (value) => {
-//   if (value) {
-//     handleOpenInNewTab()
-//   }
-// })
 </script>
 
 <template>
@@ -148,9 +72,11 @@ nextTick(() => {
         />
       </Transition>
 
-      <Transition name="drawer">
+      <Transition name="drawer" @after-leave="emit('close')">
         <div
           v-show="show"
+          ref="drawerRef"
+          tabindex="-1"
           pos="absolute top-0 right-0" of-hidden bg="$bew-bg"
           w="xl:70vw lg:80vw md:100vw 100vw" max-w-1400px h-full
         >

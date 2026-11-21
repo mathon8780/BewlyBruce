@@ -1,5 +1,6 @@
 common:
   load_failed: 加载失败，请重试
+  operation_failed: 操作失败，请重试。
   loaded_items: 已加载 {count} 项
   continue_browsing: 继续浏览下一组
   retry: 重试
@@ -328,12 +329,6 @@ settings:
     重置设置？
     该操作无法撤销。你确定要重置你的设置吗？
 
-  safari_helpers: 帮助过上架 Safari 商店的人
-  safari_helpers_desc1: 提交 PR 支援 Safari
-  safari_helpers_desc2: 帮忙免费上架 Safari
-  safari_helpers_desc3: 帮解答注册苹果开发者问题
-  safari_helpers_desc4: 帮解答注册苹果开发者问题
-
   contributors: 贡献者
 
 auth:
@@ -530,6 +525,8 @@ favorites:
   clean_failed: 清理失效内容失败，请重试。
   unfavorite: 取消收藏
   batch_failed: 已完成 {completed}/{count} 项，请重试剩余项目。
+  batch_unconfirmed: 已确认 {completed}/{count} 项。中断批次的结果待确认，请刷新后检查收藏夹。
+  refresh_failed: 无法核对收藏夹，请刷新后再操作。
   unfavorite_confirm: 确定取消收藏这 {count} 项吗？此操作无法撤销。
 
 watch_later:
@@ -546,3 +543,4 @@ watch_later:
 search_bar:
   history_title: 搜索历史
   clear_history: 清空搜索历史
+  history_sync_failed: 搜索历史未能同步。

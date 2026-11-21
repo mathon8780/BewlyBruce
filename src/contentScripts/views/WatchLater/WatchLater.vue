@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { useDateFormat } from '@vueuse/core'
+import { formatDate } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 
 import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useBewlyApp } from '~/composables/useAppProvider'
@@ -13,11 +14,13 @@ import { calcCurrentTime } from '~/utils/dataFormatter'
 import { getCSRF, openLinkToNewTab, removeHttpFromUrl } from '~/utils/main'
 
 const { t } = useI18n()
+const toast = useToast()
 const { openIframeDrawer } = useBewlyApp()
 const { setActivatedCover } = useMainStore()
 
 const isLoading = ref(false)
 const loadFailed = ref(false)
+const isUpdating = ref(false)
 // This endpoint returns the complete server list. Keep one shallow array; virtualize its DOM.
 const allWatchLaterList = shallowRef<VideoItem[]>([])
 const watchLaterCount = computed(() => allWatchLaterList.value.length)
@@ -38,6 +41,8 @@ onBeforeUnmount(() => {
 })
 
 async function initData() {
+  if (!getCSRF())
+    return
   const token = generation.invalidate()
   const current = () => alive && generation.isCurrent(token)
   isLoading.value = true
@@ -60,38 +65,42 @@ async function initData() {
   }
 }
 
-function deleteWatchLaterItem(aid: number) {
-  api.watchlater.removeFromWatchLater({ aid, csrf: getCSRF() }).then((res) => {
-    if (alive && res.code === 0)
+async function runWatchLaterAction(action: () => Promise<{ code: number, message?: string }>, aid?: number) {
+  if (isUpdating.value || !getCSRF())
+    return
+  isUpdating.value = true
+  try {
+    const res = await action()
+    if (res.code !== 0)
+      throw new Error(res.message)
+    if (!alive)
+      return
+    if (aid !== undefined)
       allWatchLaterList.value = allWatchLaterList.value.filter(item => item.aid !== aid)
-  }).catch(() => {
+    if (aid === undefined || isLoading.value)
+      await initData()
+  }
+  catch {
     if (alive)
-      loadFailed.value = true
-  })
+      toast.error(t('common.operation_failed'))
+  }
+  finally {
+    isUpdating.value = false
+  }
+}
+
+function deleteWatchLaterItem(aid: number) {
+  void runWatchLaterAction(() => api.watchlater.removeFromWatchLater({ aid, csrf: getCSRF() }), aid)
 }
 
 function handleClearAllWatchLater() {
-  if (!confirm(t('watch_later.clear_all_confirm')))
-    return
-  api.watchlater.clearAllWatchLater({ csrf: getCSRF() }).then((res) => {
-    if (alive && res.code === 0)
-      void initData()
-  }).catch(() => {
-    if (alive)
-      loadFailed.value = true
-  })
+  if (!isUpdating.value && confirm(t('watch_later.clear_all_confirm')))
+    void runWatchLaterAction(() => api.watchlater.clearAllWatchLater({ csrf: getCSRF() }))
 }
 
 function handleRemoveWatchedVideos() {
-  if (!confirm(t('watch_later.remove_watched_videos_confirm')))
-    return
-  api.watchlater.removeFromWatchLater({ viewed: true, csrf: getCSRF() }).then((res) => {
-    if (alive && res.code === 0)
-      void initData()
-  }).catch(() => {
-    if (alive)
-      loadFailed.value = true
-  })
+  if (!isUpdating.value && confirm(t('watch_later.remove_watched_videos_confirm')))
+    void runWatchLaterAction(() => api.watchlater.removeFromWatchLater({ viewed: true, csrf: getCSRF() }))
 }
 
 function handlePlayAll() {
@@ -246,8 +255,7 @@ function handleMouseEnter(item: VideoItem) {
                     </a>
                     <p display="block xl:none" text="$bew-text-3 sm" mt-auto mb-2>
                       {{
-                        useDateFormat(item.pubdate * 1000, 'YYYY-MM-DD HH:mm:ss')
-                          .value
+                        formatDate(new Date(item.pubdate * 1000), 'YYYY-MM-DD HH:mm:ss')
                       }}
                     </p>
                   </div>
@@ -261,6 +269,7 @@ function handleMouseEnter(item: VideoItem) {
                       opacity-0 group-hover:opacity-100
                       p-2
                       duration-300
+                      :disabled="isUpdating"
                       @click.prevent.stop="deleteWatchLaterItem(item.aid)"
                     >
                       <div i-tabler:trash />
@@ -340,6 +349,7 @@ function handleMouseEnter(item: VideoItem) {
             </Button>
             <Button
               color="rgba(255,255,255,.35)" block text-color="white" strong flex-1
+              :disabled="isUpdating"
               @click="handleClearAllWatchLater"
             >
               <template #left>
@@ -349,6 +359,7 @@ function handleMouseEnter(item: VideoItem) {
             </Button>
             <Button
               color="rgba(255,255,255,.35)" block text-color="white" strong flex-1
+              :disabled="isUpdating"
               @click="handleRemoveWatchedVideos"
             >
               <template #left>

@@ -74,16 +74,28 @@ const offsets = computed(() => {
     result.push(result[index] + (heights.value[index] ?? estimate.value))
   return result
 })
+function findRow(position: number, low: number, boundary: 0 | 1) {
+  let high = rows.value.length
+  const rowOffsets = offsets.value
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (rowOffsets[mid + boundary] < position)
+      low = mid + 1
+    else
+      high = mid
+  }
+  return low
+}
+
 const range = computed<{ start: number, end: number }>((previous) => {
-  let start = 0
-  while (start < rows.value.length && offsets.value[start + 1] < scrollTop.value - 700) start++
-  let end = start
-  while (end < rows.value.length && offsets.value[end] < scrollTop.value + viewHeight.value + 700) end++
+  const start = findRow(scrollTop.value - 700, 0, 1)
+  let end = findRow(scrollTop.value + viewHeight.value + 700, start, 0)
   end = Math.max(end, Math.min(start + 3, rows.value.length))
   return previous?.start === start && previous.end === end ? previous : { start, end }
 })
 const visibleRows = computed(() => rows.value.slice(range.value.start, range.value.end))
 let observer: ResizeObserver | undefined
+const observedRows = new Set<HTMLElement>()
 let frame = 0
 let active = false
 let measuredWidth = 0
@@ -116,10 +128,30 @@ function scheduleUpdate() {
 }
 
 function observeRows() {
-  observer?.disconnect()
-  if (root.value)
-    observer?.observe(root.value)
-  root.value?.querySelectorAll<HTMLElement>('[data-feed-row]').forEach(element => observer?.observe(element))
+  if (!observer || !root.value)
+    return
+  const visible = new Set(root.value.querySelectorAll<HTMLElement>('[data-feed-row]'))
+  for (const element of observedRows) {
+    if (!visible.has(element)) {
+      observer.unobserve(element)
+      observedRows.delete(element)
+    }
+  }
+  for (const element of visible) {
+    if (!observedRows.has(element)) {
+      observer.observe(element)
+      observedRows.add(element)
+    }
+  }
+}
+
+function resetMeasurements() {
+  heights.value = {}
+  // 已登记的行尺寸不变时，ResizeObserver 不会再次上报。
+  for (const element of observedRows)
+    observer?.unobserve(element)
+  observedRows.clear()
+  void nextTick(observeRows)
 }
 
 function start() {
@@ -132,14 +164,13 @@ function start() {
   window.addEventListener('resize', scheduleUpdate, { passive: true })
   observer = new ResizeObserver((entries) => {
     const container = entries.find(entry => entry.target === root.value)
-    if (container && Math.abs(container.contentRect.width - measuredWidth) > 0.5) {
+    const widthChanged = container !== undefined && Math.abs(container.contentRect.width - measuredWidth) > 0.5
+    if (widthChanged) {
       measuredWidth = container.contentRect.width
-      heights.value = {}
-      scheduleUpdate()
-      return
+      resetMeasurements()
     }
     const next = { ...heights.value }
-    let changed = false
+    let changed = widthChanged
     for (const entry of entries) {
       if (entry.target === root.value) {
         scheduleUpdate()
@@ -155,6 +186,8 @@ function start() {
     if (changed)
       heights.value = next
   })
+  if (root.value)
+    observer.observe(root.value)
   observeRows()
   updateScroll()
 }
@@ -165,25 +198,12 @@ function stop() {
   window.removeEventListener('resize', scheduleUpdate)
   observer?.disconnect()
   observer = undefined
+  observedRows.clear()
   cancelAnimationFrame(frame)
   frame = 0
 }
 
-watch(columns, () => {
-  heights.value = {}
-})
-watch(
-  () => props.layout,
-  () => {
-    heights.value = {}
-  },
-)
-watch(
-  () => props.items[0],
-  () => {
-    heights.value = {}
-  },
-)
+watch([columns, () => props.layout, () => props.items[0]], resetMeasurements)
 watch(visibleRows, observeRows, { flush: 'post' })
 onMounted(start)
 onActivated(start)

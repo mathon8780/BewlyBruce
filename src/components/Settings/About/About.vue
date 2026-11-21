@@ -22,46 +22,12 @@ onMounted(async () => {
 })
 
 const importSettingsRef = ref<HTMLInputElement>()
-const hasNewVersion = ref<boolean>(false)
 const dialogVisible = reactive({
   sponsor: false,
   justWannaChangeTheJob: false,
 })
 
-const isSafari = computed((): boolean => /^(?:(?!chrome|android).)*safari/i.test(navigator.userAgent))
-
-const safariHelpers = computed((): { name: string, avatar: string, url: string, desc: string }[] => [
-  {
-    name: 'exgphe',
-    avatar: '/assets/twitterUsers/exgphe.png',
-    url: 'https://github.com/exgphe',
-    desc: t('settings.safari_helpers_desc1'),
-  },
-  {
-    name: '𝗦𝘁𝗲𝘃𝗲 𝕏',
-    avatar: '/assets/twitterUsers/st7evechou.jpg',
-    url: 'https://x.com/st7evechou',
-    desc: t('settings.safari_helpers_desc2'),
-  },
-  {
-    name: '雪谋 🏖️',
-    avatar: '/assets/twitterUsers/YukiHakarigoto.jpg',
-    url: 'https://x.com/YukiHakarigoto',
-    desc: t('settings.safari_helpers_desc3'),
-  },
-  {
-    name: 'Citron🍢',
-    avatar: '/assets/twitterUsers/vanillaCitron.jpg',
-    url: 'https://x.com/vanillaCitron',
-    desc: t('settings.safari_helpers_desc4'),
-  },
-])
-
 const isDev = computed((): boolean => import.meta.env.DEV)
-
-onMounted(() => {
-  checkGitHubRelease()
-})
 
 async function handleImportSettings(event: Event) {
   const input = event.target as HTMLInputElement
@@ -72,7 +38,7 @@ async function handleImportSettings(event: Event) {
   try {
     const imported = parseSettings(JSON.parse(await file.text()))
     settings.value = imported
-    await settings.flush()
+    await settings.flush({ recoverInvalid: true })
   }
   catch (error) {
     toast.error(String(error))
@@ -90,32 +56,16 @@ function handleExportSettings() {
   URL.revokeObjectURL(url)
 }
 
-function handleResetSettings() {
-  const result = confirm(t('settings.reset_settings_confirm'))
-  if (result) {
-    // Remember the last selected language when resetting settings
-    settings.value = { ...structuredClone(originalSettings), language: settings.value.language }
-  }
-}
-
-async function checkGitHubRelease() {
-  const apiUrl = `https://api.github.com/repos/BewlyBewly/BewlyBewly/releases/latest`
-
+async function handleResetSettings() {
+  if (!confirm(t('settings.reset_settings_confirm')))
+    return
+  settings.value = { ...structuredClone(originalSettings), language: settings.value.language }
   try {
-    const response = await fetch(apiUrl)
-    if (!response.ok)
-      throw new Error('Network response was not ok')
-
-    const data = await response.json()
-    const latestVersion = data.tag_name
-
-    // Here you can compare `latestVersion` with your current version
-    const currentVersion = `v${version}` // Replace with your actual current version
-
-    if (latestVersion !== currentVersion)
-      hasNewVersion.value = true
+    await settings.flush({ recoverInvalid: true })
   }
-  catch {}
+  catch {
+    toast.error(t('common.operation_failed'))
+  }
 }
 </script>
 
@@ -124,34 +74,14 @@ async function checkGitHubRelease() {
     <div max-w-800px mx-auto>
       <div relative w-200px m-auto>
         <img :src="`${browser.runtime.getURL('/assets/bewly-vtuber-style-logo.png')}`" alt="" width="200">
-
-        <a
-          v-if="hasNewVersion"
-          href="https://github.com/hakadao/BewlyBewly/releases"
-          target="_blank"
-          pos="absolute bottom-0 right-0"
-          transform="translate-x-50%"
-          un-text="xs $bew-text-1"
-          p="y-1 x-2"
-          bg="$bew-fill-1"
-          rounded-12
-        >
-          NEW
-        </a>
       </div>
       <section text-2xl text-center mt-2>
         <p flex="inline gap-2" fw-900>
           <span>BewlyBewly</span>
           <span v-if="isDev" inline-block text="$bew-warning-color"> Dev </span>
         </p>
-        <p text-center>
-          <a
-            href="https://github.com/hakadao/BewlyBewly/releases"
-            target="_blank"
-            un-text="sm color-$bew-text-2 hover:color-$bew-text-3"
-          >
-            v{{ version }} - Farewell
-          </a>
+        <p text="center sm $bew-text-2">
+          v{{ version }}
         </p>
       </section>
 
@@ -275,32 +205,6 @@ async function checkGitHubRelease() {
               </template>
               {{ $t('settings.reset_settings') }}
             </Button>
-          </div>
-        </section>
-        <section v-if="isSafari" w-full>
-          <h3 class="title">
-            {{ $t('settings.safari_helpers') }}
-          </h3>
-          <div grid="~ lg:cols-2 md:cols-2 cols-1 gap-2" mx--2>
-            <div v-for="helper in safariHelpers" :key="helper.name">
-              <a
-                :href="helper.url"
-                target="_blank"
-                flex="~ items-center gap-2"
-                bg="hover:$bew-fill-2"
-                p-2
-                rounded="$bew-radius"
-                duration-300
-              >
-                <img :src="browser.runtime.getURL(helper.avatar)" alt="" w-30px h-30px rounded-full>
-                <div>
-                  <p>{{ helper.name }}</p>
-                  <p text="sm $bew-text-2">
-                    {{ helper.desc }}
-                  </p>
-                </div>
-              </a>
-            </div>
           </div>
         </section>
         <section>

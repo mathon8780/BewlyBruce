@@ -1,5 +1,6 @@
 common:
   load_failed: 載入失敗，請重試
+  operation_failed: 操作失敗，請重試。
   loaded_items: 已載入 {count} 項
   continue_browsing: 繼續瀏覽下一組
   retry: 重試
@@ -329,12 +330,6 @@ settings:
     重設設定？
     此操作無法撤消，你確定要重設你的設定嗎？
 
-  safari_helpers: 幫助過上架 Safari 商店的人
-  safari_helpers_desc1: 提交 PR 支援 Safari
-  safari_helpers_desc2: 幫忙免費上架 Safari
-  safari_helpers_desc3: 幫解答註冊蘋果開發者問題
-  safari_helpers_desc4: 幫解答註冊蘋果開發者問題
-
   contributors: 貢獻者
 
 auth:
@@ -531,6 +526,8 @@ favorites:
   clean_failed: 清理失效內容失敗，請重試。
   unfavorite: 取消收藏
   batch_failed: 已完成 {completed}/{count} 項，請重試其餘項目。
+  batch_unconfirmed: 已確認 {completed}/{count} 項。中斷批次的結果待確認，請重新整理後檢查收藏夾。
+  refresh_failed: 無法核對收藏夾，請重新整理後再操作。
   unfavorite_confirm: 確定取消收藏這 {count} 項嗎？此操作無法復原。
 
 watch_later:
@@ -547,3 +544,4 @@ watch_later:
 search_bar:
   history_title: 搜尋記錄
   clear_history: 清除所有搜尋記錄
+  history_sync_failed: 搜尋記錄未能同步。

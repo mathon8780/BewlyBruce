@@ -93,10 +93,7 @@ function apiListenerFactory(API_MAP: APIMAP) {
     const cookieStoreId = sender?.tab?.cookieStoreId
     return browser.cookies
       .getAll({ url: api.url, ...(cookieStoreId ? { storeId: cookieStoreId } : {}) })
-      .then((cookies) => {
-        const accountContext = `${cookieStoreId || 'default'}:${md5(JSON.stringify(cookies.map(cookie => [cookie.name, cookie.value, cookie.domain, cookie.path]).sort()))}`
-        return doRequest(message!, api, sendResponse, cookies, accountContext)
-      })
+      .then(cookies => doRequest(message!, api, sendResponse, cookies, cookieStoreId))
       .catch((error) => {
         if (message?.requestId)
           activeRequests.delete(message.requestId)
@@ -115,7 +112,7 @@ async function doRequest(
   api: API,
   sendResponse?: Function,
   cookies?: Browser.Cookies.Cookie[],
-  accountContext?: string,
+  cookieStoreId?: string,
 ) {
   const { contentScriptQuery, requestId, ...rest } = message
   const { _fetch, params = {}, afterHandle } = api
@@ -146,10 +143,11 @@ async function doRequest(
   if (cookies)
     headers['firefox-multi-account-cookie'] = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
 
-  const key
-    = isGET && api.dedupe !== false && !requestId && accountContext
-      ? JSON.stringify([accountContext, contentScriptQuery, url, headers])
-      : undefined
+  let key: string | undefined
+  if (isGET && api.dedupe !== false && !requestId && cookies) {
+    const fingerprint = md5(JSON.stringify(cookies.map(cookie => [cookie.name, cookie.value, cookie.domain, cookie.path]).sort()))
+    key = JSON.stringify([cookieStoreId || 'default', fingerprint, contentScriptQuery, url, headers])
+  }
   let pending = key ? inFlight.get(key) : undefined
   if (!pending) {
     const controller = activeRequests.get(requestId) || new AbortController()

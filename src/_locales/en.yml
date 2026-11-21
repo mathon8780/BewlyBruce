@@ -1,5 +1,6 @@
 common:
   load_failed: Could not load this view
+  operation_failed: Action failed. Try again.
   loaded_items: Loaded {count} items
   continue_browsing: Continue with next group
   retry: Try again
@@ -333,12 +334,6 @@ settings:
     Reset settings?
     This operation cannot be reversed. Are you sure you want to reset your settings?
 
-  safari_helpers: Those who helped with publishing to the Safari store
-  safari_helpers_desc1: Submit PR to support Safari
-  safari_helpers_desc2: Help publish on Safari for free
-  safari_helpers_desc3: Help answer Apple developer registration questions
-  safari_helpers_desc4: Help answer Apple developer registration questions
-
   contributors: Contributors
 
 auth:
@@ -533,6 +528,8 @@ favorites:
   clean_failed: Could not clear unavailable items. Try again.
   unfavorite: Unfavorite
   batch_failed: Completed {completed} of {count} items. Try again for the remaining items.
+  batch_unconfirmed: Confirmed {completed} of {count} items. The interrupted batch is unconfirmed. Check the folders after refreshing.
+  refresh_failed: Could not verify the folders. Refresh before making changes.
   unfavorite_confirm: Remove these {count} items from this folder? This cannot be undone.
 
 watch_later:
@@ -549,3 +546,4 @@ watch_later:
 search_bar:
   history_title: Search History
   clear_history: Clear search history
+  history_sync_failed: Could not sync search history.

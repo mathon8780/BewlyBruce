@@ -3,7 +3,7 @@ import { onMounted, onScopeDispose } from 'vue'
 import { updateInterval } from './notify'
 
 /** Own the polling lifetime before awaiting initialization, including hidden tabs. */
-export function useTopBarPolling(initialize: () => Promise<void>, refresh: () => Promise<unknown>, interval = updateInterval) {
+export function useTopBarPolling(initialize: () => Promise<void>, refresh: () => Promise<unknown>, interval = () => updateInterval) {
   let disposed = false
   let initialized = false
   let refreshing = false
@@ -25,7 +25,7 @@ export function useTopBarPolling(initialize: () => Promise<void>, refresh: () =>
       lastRefresh = Number.NEGATIVE_INFINITY
     if (!initialized || !isActive() || refreshing)
       return
-    timer = setTimeout(update, Math.max(0, interval - (Date.now() - lastRefresh)))
+    timer = setTimeout(update, Math.max(0, interval() - (Date.now() - lastRefresh)))
   }
 
   async function update() {

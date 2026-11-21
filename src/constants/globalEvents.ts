@@ -5,3 +5,5 @@ export const DRAWER_VIDEO_ENTER_PAGE_FULL = 'drawerVideoEnterPageFull'
 export const DRAWER_VIDEO_EXIT_PAGE_FULL = 'drawerVideoExitPageFull'
 export const IFRAME_PAGE_SWITCH_BEWLY = 'iframePageSwitchBewly'
 export const IFRAME_PAGE_SWITCH_BILI = 'iframePageSwitchBili'
+
+export const SEARCH_HISTORY_WRITE_PORT = 'bewly:search-history-write'

@@ -30,16 +30,17 @@ pnpm build-firefox
 
 ## 多平台打包
 
-先执行对应平台构建，再打包；生成目录与压缩包均不纳入 Git。
+先用同一份源码执行 `pnpm build` 和 `pnpm build-firefox`，再执行 `pnpm run pack` 生成两端安装包。版本取自 `package.json`，生成目录与压缩包均不纳入 Git。
 
 | 平台 | 构建 | 打包 | 产物 |
 | --- | --- | --- | --- |
 | Chrome/Edge | `pnpm build` | `pnpm pack:zip` | `extension/`、`extension.zip` |
 | Firefox | `pnpm build-firefox` | `pnpm pack:zip-firefox`、`pnpm pack:xpi` | `extension-firefox/`、`extension-firefox.zip`、`extension.xpi` |
-| Safari 资源 | `pnpm build-safari` | `pnpm pack:zip-safari` | `extension-safari/`、`extension-safari.zip` |
 
-Firefox XPI 为本地未签名构建，打包不包含商店签名或发布。Safari ZIP 是待转换的 Web Extension 资源；需在配有 Xcode 工具的 macOS 上执行 `pnpm convert-safari` 并完成应用构建、签名，不能将资源 ZIP 当作可安装的 Safari 应用。Safari 功能尚未经过浏览器回归。
+Firefox XPI 是本地未签名测试包。浏览器的加载步骤和长期安装所需的签名见 [README 安装说明](../README-cmn_CN.md)。
 
-源码包使用 `pnpm pack:zip-firefox-sources`，要求工作区已提交，以保证 `extension-firefox-sources.zip` 与当前 `HEAD` 一致。本地反馈图片放在已忽略的 `feedback/`，不会进入提交或源码归档。
+Firefox 提审另需源码包。验证和打包使用同一份源码。干净工作区可用 `pnpm pack:zip-firefox-sources` 归档对应的 `HEAD`。本地反馈图片放在已忽略的 `feedback/`，不会进入提交或源码归档。
+
+默认发布配置仅在本地创建版本提交和标签并打包。商店提交单独执行。
 
 优化内容、体积数据和验证限制统一记录在[仓库优化记录](OPTIMIZATION-cmn_CN.md)。
