@@ -39,7 +39,7 @@ pnpm build-firefox
 
 Firefox XPI 是本地未签名测试包。浏览器的加载步骤和长期安装所需的签名见 [README 安装说明](../README-cmn_CN.md)。
 
-Firefox 提审另需源码包。验证和打包使用同一份源码。干净工作区可用 `pnpm pack:zip-firefox-sources` 归档对应的 `HEAD`。本地反馈图片放在已忽略的 `feedback/`，不会进入提交或源码归档。
+Firefox 提审另需源码包。验证和打包使用同一份源码。干净工作区可用 `pnpm pack:zip-firefox-sources` 归档对应的 `HEAD`。源码包包含 [Mozilla 审核构建说明](FIREFOX_REVIEW.md)。本地反馈图片放在已忽略的 `feedback/`，不会进入提交或源码归档。
 
 默认发布配置仅在本地创建版本提交和标签并打包。商店提交单独执行。
 

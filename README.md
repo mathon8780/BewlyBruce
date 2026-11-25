@@ -45,6 +45,7 @@ Without this template, it may not be possible to develop this project.
 [Firefox temporary installation](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/) · [Firefox signing](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
 
 See the [local development guide](docs/LOCAL_DEVELOPMENT-cmn_CN.md#多平台打包) for build and packaging commands.
+Mozilla reviewers can use the [Firefox build instructions](docs/FIREFOX_REVIEW.md) to reproduce the submitted package.
 
 ## 🤝 Contribution & Build
 
