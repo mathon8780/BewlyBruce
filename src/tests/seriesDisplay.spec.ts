@@ -33,6 +33,34 @@ async function settle() {
   for (let i = 0; i < 8; i++) await nextTick()
 }
 
+it('loads past a completely filtered page and restores its items when unblocked', async () => {
+  const blocked = ref(true)
+  const load = vi.fn<() => Promise<FeedPage<{ id: string }>>>()
+    .mockResolvedValueOnce({ items: [{ id: 'hidden' }], done: false })
+    .mockResolvedValueOnce({ items: [{ id: 'visible' }], done: true })
+  app = createApp({
+    setup() {
+      const { visibleItems } = useWindowedFeed({
+        key: item => item.id,
+        isVisible: item => !blocked.value || item.id !== 'hidden',
+        loadPage: load,
+        resetCursor: vi.fn(),
+        beforeLoading: vi.fn(),
+        afterLoading: vi.fn(),
+      })
+      return () => h('p', visibleItems.value.map(item => item.id).join(','))
+    },
+  })
+  app.mount(document.body.appendChild(document.createElement('div')))
+  await settle()
+  expect(load).toHaveBeenCalledTimes(2)
+  expect(document.querySelector('p')?.textContent).toBe('visible')
+  blocked.value = false
+  await settle()
+  expect(document.querySelector('p')?.textContent).toBe('hidden,visible')
+  expect(load).toHaveBeenCalledTimes(2)
+})
+
 it('edits independent style settings using one expanded preview and resets only the current style', async () => {
   app = createApp(SeriesSettings).use(createI18n({ legacy: false, locale: 'en', messages: { en: {} }, missingWarn: false, fallbackWarn: false }))
   app.mount(document.body.appendChild(document.createElement('div')))

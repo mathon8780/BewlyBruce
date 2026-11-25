@@ -25,7 +25,7 @@ const openMode = computed(() => {
   return 'newTab'
 })
 
-// Since BewlyBewly sometimes uses an iframe to open the original Bilibili page in the current tab
+// Since BewlyBruce sometimes uses an iframe to open the original Bilibili page in the current tab
 // please set the target to `_top` instead of `_self`
 const target = computed(() => {
   if (openMode.value === 'newTab') {

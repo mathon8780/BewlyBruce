@@ -1,9 +1,9 @@
-# BewlyBewly
+# BewlyBruce
 
 [English](README.md) | [官话 - 简体中文](README-cmn_CN.md) | 官話 - 繁體中文 | [廣東話](README-jyut.md)
 
 <p align="center" style="margin-bottom: 0px !important;">
-<img width="300" alt="BewlyBewly icon" src="https://cdn.jsdelivr.net/gh/BewlyBewly/Imgs/logos/bewlybewly-vtuber-logo.png"><br/>
+<img width="112" alt="BewlyBruce icon" src="./assets/icon-512.png"><br/>
 </p>
 
 <p align="center">只需對您的 Bilibili 主頁進行一些小改動就好。</p>
@@ -14,14 +14,14 @@
 ## 👋 介紹
 
 > [!IMPORTANT]
-> BewlyBewly 主要著重於頁面調整和改良，而不是完善功能和提升效率。
+> BewlyBruce 主要著重於頁面調整和改良，而不是完善功能和提升效率。
 >
 > 由於考慮到效率和維護困難度，深色模式只會適應常用的頁面，而較少使用的頁面則不會支護。
 
 > [!NOTE]
 > 維護範圍包含 Chromium（Chrome、Edge 等）和 Firefox。安裝時請允許擴充功能存取 Bilibili 和 hdslb.com。Firefox 也會使用 Cookie 和請求標頭權限維持網站及容器的登入狀態。
 
-BewlyBewly 是一個針對 BiliBili 的瀏覽器擴充功能，旨在透過重新設計 BiliBili 的介面來提升用戶體驗。設計靈感來自於 YouTube、Vision OS 和 iOS，使介面更具視覺吸引力和用戶友好性。
+BewlyBruce 是一個針對 BiliBili 的瀏覽器擴充功能，旨在透過重新設計 BiliBili 的介面來提升用戶體驗。設計靈感來自於 YouTube、Vision OS 和 iOS，使介面更具視覺吸引力和用戶友好性。
 
 該專案使用 [vitesse-webext](https://github.com/antfu/vitesse-webext) 範例進行開發。如果沒有此範例，可能無法開發出此專案。
 

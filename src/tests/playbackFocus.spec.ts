@@ -59,6 +59,36 @@ it('disables recommendations by default and drops the removed collapse settings 
   expect(vi.getTimerCount()).toBe(0)
 })
 
+it('hides the new Watch Later recommendations and selects pause after playback', async () => {
+  navigate('/list/watchlater')
+  document.body.innerHTML = '<aside class="playlist-container--right"><div class="action-list-container">稍后再看</div><div class="recommend-list-container">相关推荐</div></aside>'
+  const controller = start({ blockRelatedVideos: true })
+  expect(getComputedStyle(document.querySelector('.recommend-list-container')!).display).toBe('none')
+  expect(getComputedStyle(document.querySelector('.action-list-container')!).display).not.toBe('none')
+
+  document.body.insertAdjacentHTML('beforeend', '<div class="bpx-player-ctrl-setting-handoff"><input type="radio" class="bui-radio-input" name="handoff" value="0" checked><input type="radio" class="bui-radio-input" name="handoff" value="2"></div>')
+  const automatic = document.querySelector<HTMLInputElement>('input[value="0"]')!
+  const pause = document.querySelector<HTMLInputElement>('input[value="2"]')!
+  await Promise.resolve()
+  expect(pause.checked).toBe(true)
+  expect(automatic.checked).toBe(false)
+
+  controller.update(defaults)
+  automatic.click()
+  expect(automatic.checked).toBe(true)
+  expect(getComputedStyle(document.querySelector('.recommend-list-container')!).display).not.toBe('none')
+})
+
+it('turns off the normal video recommendation switch through its native control', () => {
+  document.body.innerHTML = '<div class="continuous-btn"><div class="switch-btn on"></div></div>'
+  const toggle = document.querySelector<HTMLDivElement>('.continuous-btn')!
+  const click = vi.fn(() => toggle.firstElementChild?.classList.remove('on'))
+  toggle.addEventListener('click', click)
+  const controller = start({ blockRelatedVideos: true })
+  controller.update({ ...defaults, blockRelatedVideos: true })
+  expect(click).toHaveBeenCalledTimes(1)
+})
+
 it('toggles activity items independently, covers late items and preserves other resources and native content', () => {
   document.body.innerHTML = '<main><div id="v_desc">简介</div><div class="video-resource-list"><div id="promotion" class="video-resource-list__item"><div class="activity-m-v1 act-now"><div class="hinter-msg"><b>活动推广</b></div></div></div><div id="resource" class="video-resource-list__item">其他资源</div></div><div id="commentapp">评论</div><div class="recommend-list-v1">推荐</div><div id="unrelated" class="activity-m-v1">无关模块</div></main>'
   const markup = document.body.innerHTML

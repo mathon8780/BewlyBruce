@@ -17,7 +17,7 @@ export function getPageType(href: string) {
       return 'momentsPage'
     if (/^\/v\/topic\/detail\b/.test(path))
       return 'topicPage'
-    if (/^\/(?:v|tv|movie|variety|mooc|documentary)\b/.test(path))
+    if (/^\/(?:c|v|tv|movie|variety|mooc|documentary)\b/.test(path))
       return 'channelPage'
     if (/^\/(?:anime|guochuang)\b/.test(path))
       return 'animePage'

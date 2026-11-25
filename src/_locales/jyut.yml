@@ -61,7 +61,9 @@ iframe_drawer:
 settings:
   group_playback_page: 播放頁面
   block_related_videos: 隱藏相關推薦
-  block_related_videos_desc: 隱藏播放頁同播放器入面嘅推薦內容，保留分 P、合集同選集。
+  block_related_videos_desc: 隱藏播放頁同播放器入面嘅推薦內容，同時關閉自動連播。保留分 P、合集同選集。
+  block_charge_exclusive: 封鎖充電專屬
+  block_charge_exclusive_desc: 按網頁影片列表嘅標記隱藏充電專屬影片，保留清楚標明限時免費嘅內容。收藏頁照常顯示。
   series_always_visible: 詳情一直顯示，唔使懸停或者撳。
   series_behavior_hint: 實際卡片跟呢個設定顯示詳情；預覽一直顯示展開結果。
   series_behavior: 顯示行為
@@ -100,8 +102,9 @@ settings:
   menu_general: 一般
   menu_desktop_and_dock: 桌面同 Dock
   menu_appearance: 版面
-  menu_bewly_pages: BewlyBewly 頁面
+  menu_bewly_pages: BewlyBruce 頁面
   menu_home: 主頁
+  menu_video: 影片
   menu_search_page: 搵嘢頁
   menu_compatibility: 相容性
   menu_about: 關於
@@ -191,8 +194,8 @@ settings:
   use_old_top_bar: 用返舊版頂部欄
   auto_hide_top_bar: 自動收埋頂部欄
   show_top_bar_theme_color_gradient: 喺頂部欄顯示主題色漸變（淨係喺深色模式下有效）
-  show_bewly_or_bili_top_bar_switcher: 顯示 BewlyBewly/Bilibili 頂部欄切換掣
-  show_bewly_or_bili_page_switcher: 顯示 BewlyBewly/Bilibili 頁面切換掣
+  show_bewly_or_bili_top_bar_switcher: 顯示 BewlyBruce/Bilibili 頂部欄切換掣
+  show_bewly_or_bili_page_switcher: 顯示 BewlyBruce/Bilibili 頁面切換掣
   top_bar_icon_badges: 圖標邊位標記
   top_bar_icon_badges_opt:
     number: 數字
@@ -240,7 +243,7 @@ settings:
   customize_css: 自訂 CSS
   customize_css_desc: |-
     若然你唔係幾識 CSS，請唔好立亂去改 CSS。唔係嘅話可能會搞到個頁面亂晒。
-    若然你執咗 CSS 之後遇到任何問題，唔該重新單個 BewlyBewly。
+    若然你執咗 CSS 之後遇到任何問題，唔該重新單個 BewlyBruce。
 
   # Search page
   logo_color: Logo 顏色
@@ -257,8 +260,8 @@ settings:
   # Home
   recommendation_mode: 推介模式
   recommendation_mode_desc: |
-    若然你想用手機版嘅推介演算法，就要俾 BewlyBewly 批准使用存取 access key。
-  authorize_app: 授權 BewlyBewly 使用 access key
+    若然你想用手機版嘅推介演算法，就要俾 BewlyBruce 批准使用存取 access key。
+  authorize_app: 授權 BewlyBruce 使用 access key
   authorize_app_desc: >
     授咗權嘅話，你就會收到基於 bilibili 手機版推介演算法所推介嘅內容，兼且授權 key 只有約一個月有效期，到期後記得要重新授權嚟取得存取
     access key。
@@ -305,13 +308,13 @@ settings:
 
   # Compatibility
   # Common
-  topbar_visibility: BewlyBewly 頂部欄可視性
-  topbar_visibility_desc: 若然你係用緊 Bilibili Evolved 嘅頂部欄，你可以喺度閂咗 BewlyBewly 嘅頂部欄去。
+  topbar_visibility: BewlyBruce 頂部欄可視性
+  topbar_visibility_desc: 若然你係用緊 Bilibili Evolved 嘅頂部欄，你可以喺度閂咗 BewlyBruce 嘅頂部欄去。
   use_original_bilibili_homepage: 用返原本嘅 Bilibili 主頁
   use_original_bilibili_homepage_desc: 改咗之後，如果你喺主頁，個頁面就會自動重新整理！
   use_original_bilibili_topbar: 用返原本嘅 Bilibili 頂部欄
   adapt_to_other_page_styles: 適應其他版面風格
-  adapt_to_other_page_styles_desc: 執執啲常用嘅版面，襯返 BewlyBewly 主題風格。
+  adapt_to_other_page_styles_desc: 執執啲常用嘅版面，襯返 BewlyBruce 主題風格。
   # Bilibili Evolved
   follow_bilibili_evolved_color: 跟返 Bilibili Evolved 主題色
   follow_bilibili_evolved_color_desc: 每次換完 Bilibili Evolved 主題色嗰陣，記得揀多一次呢個選項愛嚟更新佈置。
@@ -332,10 +335,10 @@ settings:
   contributors: 貢獻者
 
 auth:
-  auth_access_key_first: 整之前記得先授權 BewlyBewly 去用 access key
+  auth_access_key_first: 整之前記得先授權 BewlyBruce 去用 access key
 
 topbar:
-  switch_to_bewly_top_bar: 切換到 BewlyBewly 頂部欄
+  switch_to_bewly_top_bar: 切換到 BewlyBruce 頂部欄
   switch_to_bili_top_bar: 切換到 Bilibili/Bilibili-Evolved 頂部欄
 
   sign_in: 登入
@@ -346,6 +349,7 @@ topbar:
   watch_later: 陣間至睇
   creative_center: 創作中心
   upload: Po 嘢
+  channels: 分區
   logo_dropdown:
     anime: 動畫
     movies: 電影
@@ -437,6 +441,8 @@ dock:
 video_card:
   operation:
     not_interested: 唔鍾意
+    block_uploader: 封鎖投稿者
+    more_actions: 影片選項
     open_in_new_tab: 新分頁開啓
     open_in_background: 後台開啓
     open_in_new_window: 新視窗開啓
@@ -451,6 +457,12 @@ video_card:
 
   group_contribution: '{firstAuthor} 等 {num} 人一齊創作'
   video_removed: 經已鏟咗條片
+  uploader_blocked: 封鎖咗 {name}
+  blocked_uploaders: 已封鎖嘅投稿者
+  blocked_uploaders_desc: 按主投稿者 UID 隱藏影片，名單儲喺而家用緊嘅瀏覽器。關注緊嘅內容同 App 推薦照常顯示。
+  blocked_uploaders_empty: 未封鎖任何投稿者
+  unblock_uploader: 移除封鎖
+  load_more: 載入更多
 
 home:
   series_plays: 播放量
@@ -508,6 +520,21 @@ history:
     你確定要開返收睇記錄？
 
 favorites:
+  own_folders: 我開嘅收藏夾
+  saved_categories: 我追嘅合集/收藏夾
+  own_short: 我嘅收藏
+  saved_short: 合集
+  reorder_category: 拖曳調整「{title}」嘅順序，亦可以用方向鍵移動
+  show_own_folders: 切去我開嘅收藏夾
+  show_saved_categories: 切去我追嘅合集/收藏夾
+  no_saved_categories: 未追任何合集或收藏夾
+  search_collection: 搜尋而家睇緊嘅合集
+  make_public: 「{folder}」係私人，撳一下可以設為公開
+  make_private: 「{folder}」係公開，撳一下可以設為私人
+  confirm_public: 3 秒內撳多一下，將「{folder}」設為公開
+  confirm_private: 3 秒內撳多一下，將「{folder}」設為私人
+  now_public: 「{folder}」已設為公開
+  now_private: 「{folder}」已設為私人
   folders: 收藏夾
   search: 喺呢個收藏夾搵
   batch_manage: 批量管理

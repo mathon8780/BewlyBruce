@@ -7,6 +7,8 @@ import Empty from '~/components/Empty.vue'
 import Loading from '~/components/Loading.vue'
 import Progress from '~/components/Progress.vue'
 import { useAsyncTask } from '~/composables/useAsyncTask'
+import { filterBlockedUploaders } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { HistoryResult, List as HistoryItem } from '~/models/history/history'
 import { Business } from '~/models/history/history'
 import api from '~/utils/api'
@@ -15,6 +17,8 @@ import { getCSRF, removeHttpFromUrl, scrollToTop } from '~/utils/main'
 
 const { t } = useI18n()
 const historys = reactive<Array<HistoryItem>>([])
+const visibleHistory = computed(() => filterBlockedUploaders(historys, item => item.history.business === Business.ARCHIVE ? item.author_mid : undefined)
+  .filter(item => !shouldHideChargeExclusive(item)))
 const historyTabs = computed(() => [
   {
     id: 0,
@@ -153,15 +157,18 @@ function getHistoryList(type: Business, view_at = 0 as number) {
   )
 }
 
-function deleteHistoryItem(index: number, historyItem: HistoryItem) {
+function deleteHistoryItem(historyItem: HistoryItem) {
   api.history
     .deleteHistoryItem({
       kid: `${historyItem.history.business}_${historyItem.history.oid}`,
       csrf: getCSRF(),
     })
     .then((res) => {
-      if (res.code === 0)
-        historys.splice(index, 1)
+      if (res.code === 0) {
+        const index = historys.findIndex(item => item.kid === historyItem.kid)
+        if (index !== -1)
+          historys.splice(index, 1)
+      }
     })
 }
 </script>
@@ -221,11 +228,17 @@ function deleteHistoryItem(index: number, historyItem: HistoryItem) {
       >
         {{ $t('common.retry') }}
       </Button>
-      <Loading v-if="isLoading && historys.length === 0" h="full" flex="~ items-center" />
+      <Button
+        v-else-if="!isLoading && !noMoreContent && historys.length && !visibleHistory.length"
+        @click="getHistoryList(Business.ARCHIVE, historys.at(-1)?.view_at)"
+      >
+        {{ $t('video_card.load_more') }}
+      </Button>
+      <Loading v-if="isLoading && !visibleHistory.length" h="full" flex="~ items-center" />
 
       <!-- empty -->
       <Empty
-        v-if="!isLoading && historys.length === 0"
+        v-if="!isLoading && !visibleHistory.length && (!historys.length || noMoreContent)"
         pos="absolute top-0 left-0"
         bg="$bew-content"
         z="0"
@@ -238,7 +251,7 @@ function deleteHistoryItem(index: number, historyItem: HistoryItem) {
       <!-- historys -->
       <TransitionGroup name="list">
         <ALink
-          v-for="(historyItem, index) in historys"
+          v-for="historyItem in visibleHistory"
           :key="historyItem.kid"
           :href="getHistoryUrl(historyItem)"
           class="group"
@@ -272,7 +285,7 @@ function deleteHistoryItem(index: number, historyItem: HistoryItem) {
                 text="white xs"
                 duration-300
                 border="rounded-full"
-                @click.stop.prevent="deleteHistoryItem(index, historyItem)"
+                @click.stop.prevent="deleteHistoryItem(historyItem)"
               >
                 <i i-mingcute:close-line />
               </div>
@@ -280,6 +293,15 @@ function deleteHistoryItem(index: number, historyItem: HistoryItem) {
               <!-- Video -->
               <template v-if="activatedTab === 0">
                 <div pos="relative">
+                  <VideoListModeration
+                    v-if="historyItem.history.business === Business.ARCHIVE"
+                    :video-id="historyItem.history.oid"
+                    :bvid="historyItem.history.bvid"
+                    :uploader-mid="historyItem.author_mid"
+                    :uploader-name="historyItem.author_name"
+                    :uploader-avatar="historyItem.author_face"
+                    compact
+                  />
                   <img
                     w="150px"
                     h-full
@@ -387,7 +409,7 @@ function deleteHistoryItem(index: number, historyItem: HistoryItem) {
 
       <!-- loading -->
       <Transition name="fade">
-        <Loading v-if="isLoading && historys.length !== 0" m="-t-4" />
+        <Loading v-if="isLoading && visibleHistory.length" m="-t-4" />
       </Transition>
     </main>
   </div>

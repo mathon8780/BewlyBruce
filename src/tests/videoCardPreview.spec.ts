@@ -20,6 +20,7 @@ vi.mock('~/logic', async () => {
 vi.mock('~/utils/api', () => ({ default: { video: { getVideoPreview } } }))
 vi.mock('~/utils/authProvider', () => ({ getTvSign: vi.fn(), TVAppKey: '' }))
 vi.mock('~/utils/tabs', () => ({ openLinkInBackground: vi.fn() }))
+vi.mock('~/logic/blockedUploaders', () => ({ updateBlockedUploader: vi.fn() }))
 vi.mock('~/stores/mainStore', () => ({ useMainStore: () => ({ setActivatedCover }) }))
 vi.mock('~/composables/useAppProvider', () => ({ useBewlyApp: () => ({ openIframeDrawer: vi.fn() }) }))
 vi.mock('vue-toastification', () => ({ useToast: () => ({ error: vi.fn() }) }))

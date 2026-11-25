@@ -1,9 +1,9 @@
-# BewlyBewly
+# BewlyBruce
 
 English | [官话 - 简体中文](README-cmn_CN.md) | [官話 - 繁體中文](README-cmn_TW.md) | [廣東話](README-jyut.md)
 
 <p align="center" style="margin-bottom: 0px !important;">
-<img width="300" alt="BewlyBewly icon" src="https://cdn.jsdelivr.net/gh/BewlyBewly/Imgs/logos/bewlybewly-vtuber-logo.png"><br/>
+<img width="112" alt="BewlyBruce icon" src="./assets/icon-512.png"><br/>
 </p>
 
 <p align="center">Just make a few small changes to your Bilibili homepage.</p>
@@ -14,7 +14,7 @@ English | [官话 - 简体中文](README-cmn_CN.md) | [官話 - 繁體中文](RE
 ## 👋 Introduction
 
 > [!IMPORTANT]
-> BewlyBewly mainly focuses on page adjustments and optimization rather than improving functionally and efficiency.
+> BewlyBruce mainly focuses on page adjustments and optimization rather than improving functionally and efficiency.
 >
 > The dark mode will only be adapted to commonly used pages due to its efficiency and maintenance difficulty, while less
 > frequently used pages will not to be adapted.
@@ -22,7 +22,7 @@ English | [官话 - 简体中文](README-cmn_CN.md) | [官話 - 繁體中文](RE
 > [!NOTE]
 > This project maintains Chromium builds for browsers such as Chrome and Edge, and Firefox builds. Installation grants access to Bilibili and hdslb.com. Firefox also uses cookie and request-header permissions to keep Bilibili sessions working in their respective containers.
 
-BewlyBewly is a browser extension for BiliBili that aims to enhance the user experience by redesigning the BiliBili UI.
+BewlyBruce is a browser extension for BiliBili that aims to enhance the user experience by redesigning the BiliBili UI.
 The design is inspired by YouTube, Vision OS, and iOS, resulting in a more visually appealing and user-friendly interface.
 This project uses the [vitesse-webext](https://github.com/antfu/vitesse-webext) template for development.
 Without this template, it may not be possible to develop this project.

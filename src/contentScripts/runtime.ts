@@ -12,6 +12,7 @@ import { runWhenIdle } from '~/utils/lazyLoad'
 import { compareVersions, injectCSS, isHomePage, isInIframe, isVideoOrBangumiPage } from '~/utils/main'
 
 import { version } from '../../package.json'
+import { startChargeExclusiveFilter } from './chargeExclusiveFilter'
 import { startCommentFilter } from './commentFilter'
 import { mirrorExtensionStyles } from './extensionStyles'
 import { supportsContentScript } from './pageScope'
@@ -44,6 +45,16 @@ export async function start() {
     return
   started = true
   await settingsReady
+  if (['www.bilibili.com', 'search.bilibili.com', 'space.bilibili.com', 't.bilibili.com'].includes(location.hostname)) {
+    const stopChargeWatch = watch(() => settings.value.blockChargeExclusive, (enabled, _, onCleanup) => {
+      if (enabled)
+        onCleanup(startChargeExclusiveFilter())
+    }, { immediate: true })
+    window.addEventListener('pagehide', (event) => {
+      if (!event.persisted)
+        stopChargeWatch()
+    })
+  }
   if (!isSupportedPages() && !isSupportedIframePages())
     return
   const disposeDarkTheme = initializeDarkTheme()
@@ -208,10 +219,10 @@ async function injectApp() {
   const bewlyElArr: NodeListOf<Element> = document.querySelectorAll('#bewly')
   if (bewlyElArr.length > 0) {
     // alert(`
-    //   You have multiple versions of BewlyBewly installed. Please retain only one to avoid conflicts and issues!
-    //   您安装了多个版本的 BewlyBewly。请只保留一个版本以避免冲突和问题！
-    //   您安裝了多個版本的 BewlyBewly。請只保留一個版本以避免衝突和問題！
-    //   你單咗幾個版本嘅 BewlyBewly。請淨係留一個版本嚟避免衝突同問題！
+    //   You have multiple versions of BewlyBruce installed. Please retain only one to avoid conflicts and issues!
+    //   您安装了多个版本的 BewlyBruce。请只保留一个版本以避免冲突和问题！
+    //   您安裝了多個版本的 BewlyBruce。請只保留一個版本以避免衝突和問題！
+    //   你單咗幾個版本嘅 BewlyBruce。請淨係留一個版本嚟避免衝突同問題！
     // `)
 
     bewlyElArr.forEach((el: Element) => {
@@ -238,10 +249,13 @@ async function injectApp() {
   // Fix #69 https://github.com/hakadao/BewlyBewly/issues/69
   // https://medium.com/@emilio_martinez/shadow-dom-open-vs-closed-1a8cf286088a - open shadow dom
   const shadowDOM = container.attachShadow?.({ mode: 'open' }) || container
+  const toastContainer = document.createElement('div')
   const resetStyleEl = document.createElement('style')
   resetStyleEl.textContent = `${RESET_BEWLY_CSS}`
   shadowDOM.appendChild(resetStyleEl)
   shadowDOM.appendChild(root)
+  // 首页接管会清理原页面的 body 子节点，通知需要挂载在扩展容器内。
+  shadowDOM.appendChild(toastContainer)
   const styles = mirrorExtensionStyles(shadowDOM, browser.runtime.getURL('dist/contentScripts/'))
   container.style.opacity = '0'
   container.style.transition = 'opacity 0.5s'
@@ -257,7 +271,7 @@ async function injectApp() {
 
   const app = createApp(App)
   try {
-    await setupApp(app)
+    await setupApp(app, 'content-script', toastContainer)
     app.mount(root)
   }
   catch (error) {

@@ -3,6 +3,7 @@ html[data-bewly-hide-recommendations]
   :is(
     .recommend-list-v1,
     .recommend-list-pr,
+    .playlist-container--right > .recommend-list-container,
     .recommend-list,
     .recommend-container,
     .recom-wrapper,

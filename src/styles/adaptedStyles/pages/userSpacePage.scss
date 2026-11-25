@@ -53,7 +53,7 @@
 
   // #region theme color adaption part
   // Increase the priority of the style inside by writing a non-existent selector in :not()
-  // 淺色模式下主要對 theme color 調整配合 bewlybewly 配色
+  // 淺色模式下主要對 theme color 調整配合 BewlyBruce 配色
   // 深色模式下才對主要邊框和背景色調整
   // 淺色模式下顏色避免太大調整
   :not(foobar) {

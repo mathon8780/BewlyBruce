@@ -6,12 +6,14 @@ import { useMainStore } from '~/stores/mainStore'
 // import { useSettingsStore } from '~/stores/settingsStore'
 import { isHomePage, isInIframe } from '~/utils/main'
 
+import { displayName } from '../../../../package.json'
+
 const { activatedPage } = useBewlyApp()
 const { getDockItemByPage } = useMainStore()
 // const { getDockItemConfigByPage } = useSettingsStore()
 const options = readonly([
   {
-    name: 'BewlyBewly',
+    name: displayName,
     shortName: 'Bewly',
     useOriginalBiliPage: false,
   },
@@ -64,6 +66,7 @@ function switchPage(useOriginalBiliPage: boolean) {
     <button
       v-for="option in options"
       :key="option.name"
+      :aria-label="option.name"
       class="bewly-bili-switcher-button"
       :class="{
         active: option.useOriginalBiliPage === isInIframe(),

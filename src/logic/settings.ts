@@ -30,6 +30,7 @@ export interface Settings {
 
   blockAdsAndPromotions: boolean
   blockAtComments: boolean
+  blockChargeExclusive: boolean
 
   blockRelatedVideos: boolean
 
@@ -138,6 +139,7 @@ export const originalSettings: Settings = {
 
   blockAdsAndPromotions: false,
   blockAtComments: false,
+  blockChargeExclusive: false,
 
   blockRelatedVideos: false,
 

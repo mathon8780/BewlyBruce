@@ -175,19 +175,6 @@ watch(
         </SettingsItem>
       </template>
     </SettingsItemGroup>
-    <SettingsItemGroup :title="$t('settings.group_playback_page')">
-      <SettingsItem :title="$t('settings.block_related_videos')" :desc="$t('settings.block_related_videos_desc')">
-        <Radio v-model="settings.blockRelatedVideos" />
-      </SettingsItem>
-    </SettingsItemGroup>
-    <SettingsItemGroup :title="$t('settings.group_blocking')">
-      <SettingsItem :title="$t('settings.block_ads_and_promotions')" :desc="$t('settings.block_ads_and_promotions_desc')">
-        <Radio v-model="settings.blockAdsAndPromotions" />
-      </SettingsItem>
-      <SettingsItem :title="$t('settings.block_at_comments')" :desc="$t('settings.block_at_comments_desc')">
-        <Radio v-model="settings.blockAtComments" />
-      </SettingsItem>
-    </SettingsItemGroup>
   </div>
 </template>
 

@@ -6,6 +6,8 @@ import { provideVideoCardState } from '~/composables/useVideoCardState'
 import { LanguageType } from '~/enums/appEnums'
 import type { GridLayoutType } from '~/logic'
 import { accessKey, settings, settingsReady } from '~/logic'
+import { filterBlockedUploaders } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { Item as AppVideoItem } from '~/models/video/appForYou'
 import type { Item as VideoItem } from '~/models/video/forYou'
 import api from '~/utils/api'
@@ -34,6 +36,10 @@ interface VideoElement { uniqueId: string, item: VideoItem }
 interface AppVideoElement { uniqueId: string, item: AppVideoItem }
 const videoList = shallowRef<VideoElement[]>([])
 const appVideoList = shallowRef<AppVideoElement[]>([])
+const visibleWebVideos = computed(() => filterBlockedUploaders(videoList.value, video => video.item.owner.mid)
+  .filter(video => !shouldHideChargeExclusive(video.item)))
+const visibleAppVideos = computed(() => appVideoList.value.filter(video => !shouldHideChargeExclusive(video.item)))
+const visibleVideos = computed(() => settings.value.recommendationMode === 'web' ? visibleWebVideos.value : visibleAppVideos.value)
 const isLoading = ref(false)
 const needToLoginFirst = ref(false)
 const noMoreContent = ref(false)
@@ -130,7 +136,8 @@ async function getData() {
       needsMore: async () => {
         await nextTick()
         const scrollbar = await haveScrollbar()
-        return current() && (count() < PAGE_SIZE || !scrollbar)
+        const visibleCount = visibleVideos.value.length
+        return current() && (visibleCount < PAGE_SIZE || !scrollbar)
       },
     })
   }
@@ -254,13 +261,14 @@ defineExpose({ initData })
     </Empty>
 
     <div v-else>
-      <VirtualFeed v-if="settings.recommendationMode === 'web'" :items="videoList" :item-key="video => video.uniqueId" :layout="props.gridLayout">
+      <VirtualFeed v-if="settings.recommendationMode === 'web'" :items="visibleWebVideos" :item-key="video => video.uniqueId" :layout="props.gridLayout">
         <template #default="{ item: video, index }">
           <VideoCard
             :cover-loading="index < 10 ? 'eager' : 'lazy'"
             reserve-title-space
             :skeleton="!video.item"
             type="rcmd"
+            uploader-block
             :video="video.item ? {
               id: video.item.id,
               duration: video.item.duration,
@@ -284,7 +292,7 @@ defineExpose({ initData })
           />
         </template>
       </VirtualFeed>
-      <VirtualFeed v-else :items="appVideoList" :item-key="video => video.uniqueId" :layout="props.gridLayout">
+      <VirtualFeed v-else :items="visibleAppVideos" :item-key="video => video.uniqueId" :layout="props.gridLayout">
         <template #default="{ item: video, index }">
           <VideoCard
             :cover-loading="index < 10 ? 'eager' : 'lazy'"
@@ -327,6 +335,9 @@ defineExpose({ initData })
     </Button>
     <Button v-else-if="loadFailed" class="my-4" @click="getData">
       {{ $t('common.retry') }}
+    </Button>
+    <Button v-else-if="!isLoading && !needToLoginFirst && !noMoreContent && count() && !visibleVideos.length" class="my-4" @click="getData">
+      {{ $t('video_card.load_more') }}
     </Button>
     <!-- no more content -->
     <Empty v-if="noMoreContent" class="pb-4" :description="$t('common.no_more_content')" />

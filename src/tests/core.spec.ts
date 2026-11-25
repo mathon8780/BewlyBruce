@@ -12,15 +12,16 @@ import { homeTabs, resolveHomeTabVisibility } from '~/contentScripts/views/Home/
 import { HomeSubPage } from '~/contentScripts/views/Home/types'
 import { originalSettings, parseSettings } from '~/logic/settings'
 import { wallpaperSettingsSerializer } from '~/logic/wallpaperStorage'
+import { BLOCKED_UPLOADERS_KEY, normalizeUploaderMid, readBlockedUploaders } from '~/utils/blockedUploaders'
 import { boundedBackfill } from '~/utils/boundedPagination'
 import { compileFilterKeywords } from '~/utils/filterRules'
 import { createInflightRequests } from '~/utils/inflightRequest'
 import { isVerticalVideo, parseBilibiliUri } from '~/utils/uriParse'
 
 const extension = vi.hoisted(() => {
-  const values: Record<string, string> = {}
-  const messages: ((message: unknown) => Promise<void> | undefined)[] = []
-  const changes: ((update: Record<string, { newValue?: string }>, area: string) => void)[] = []
+  const values: Record<string, unknown> = {}
+  const messages: ((message: unknown) => Promise<unknown> | undefined)[] = []
+  const changes: ((update: Record<string, { newValue?: unknown }>, area: string) => void)[] = []
   type Listener = (message: unknown) => void
   function signal() {
     const listeners = new Set<Listener>()
@@ -52,7 +53,7 @@ const extension = vi.hoisted(() => {
   }
   const local = {
     get: async (key: string) => ({ [key]: values[key] }),
-    set: async (items: Record<string, string>) => {
+    set: async (items: Record<string, unknown>) => {
       Object.assign(values, items)
       const update = Object.fromEntries(Object.entries(items).map(([key, newValue]) => [key, { newValue }]))
       changes.forEach(listener => listener(update, 'local'))
@@ -84,6 +85,28 @@ beforeEach(() => {
   extension.messages.length = 0
   extension.changes.length = 0
   Object.keys(extension.values).forEach(key => delete extension.values[key])
+})
+
+it('serializes local uploader blocks without losing concurrent additions', async () => {
+  setupStorageMessages()
+  const update = (mid: string, name: string | null, avatar?: string) => extension.messages[0]({ blockedUploaderUpdate: { mid, name, avatar } })
+  const largeMid = '9007199254740993'
+  expect(normalizeUploaderMid(42)).toBe('42')
+  expect(normalizeUploaderMid(Number(largeMid))).toBeUndefined()
+  expect(normalizeUploaderMid(largeMid)).toBe(largeMid)
+
+  await expect(Promise.all([update('42', 'A', '//i0.hdslb.com/face/avatar.jpg'), update(largeMid, 'B')])).resolves.toEqual([true, true])
+  await expect(update('42', 'Renamed')).resolves.toBe(false)
+  await expect(update('__proto__', 'Invalid')).resolves.toBe(false)
+  expect(extension.values[BLOCKED_UPLOADERS_KEY]).toEqual({ 42: { name: 'A', avatar: 'https://i0.hdslb.com/face/avatar.jpg' }, [largeMid]: { name: 'B' } })
+  await expect(update('42', null)).resolves.toBe(true)
+  expect(extension.values[BLOCKED_UPLOADERS_KEY]).toEqual({ [largeMid]: { name: 'B' } })
+  expect(extension.values.settings).toBeUndefined()
+})
+
+it('keeps names from existing uploader blocks and discards invalid avatar URLs', () => {
+  expect(readBlockedUploaders({ 42: 'Existing', 43: { name: 'New', avatar: 'javascript:void(0)' } }))
+    .toEqual({ 42: { name: 'Existing' }, 43: { name: 'New' } })
 })
 
 it('omits the initial feed cursor and preserves large cursor IDs exactly', async () => {
@@ -192,7 +215,7 @@ it('merges simultaneous tab edits and propagates logout', async () => {
     expect(a.value).toEqual({ theme: 'dark', blockAdsAndPromotions: true })
     expect(b.value).toEqual(a.value)
   })
-  expect(JSON.parse(extension.values.settings)).toEqual(a.value)
+  expect(JSON.parse(extension.values.settings as string)).toEqual(a.value)
   const keyA = useStorageLocal('accessKey', '')
   const keyB = useStorageLocal('accessKey', '')
   await Promise.all([keyA.ready, keyB.ready])
@@ -284,7 +307,7 @@ it('retries hydration before writing edits and preserves the previously saved ho
     await state.flush()
     expect(state.hydrated.value).toBe(true)
     expect(state.value).toEqual({ tabList: tabs, layout: { dark: true } })
-    expect(JSON.parse(extension.values[key])).toEqual(state.value)
+    expect(JSON.parse(extension.values[key] as string)).toEqual(state.value)
   }
   finally {
     read.mockRestore()
@@ -352,7 +375,7 @@ it.each(['{broken', '{"theme":0}'])('recovers invalid stored settings on an expl
   expect(onError).toHaveBeenCalledOnce()
 
   await state.flush({ recoverInvalid: true })
-  expect(JSON.parse(extension.values.settings).theme).toBe(originalSettings.theme)
+  expect(JSON.parse(extension.values.settings as string).theme).toBe(originalSettings.theme)
 })
 
 it('merges changes into settings already recovered by another tab', async () => {
@@ -370,7 +393,7 @@ it('merges changes into settings already recovered by another tab', async () => 
   extension.values.settings = JSON.stringify({ theme: 'dark', enableVideoPreview: false })
   state.value.theme = 'light'
   await state.flush()
-  expect(JSON.parse(extension.values.settings)).toEqual({ theme: 'light', enableVideoPreview: false })
+  expect(JSON.parse(extension.values.settings as string)).toEqual({ theme: 'light', enableVideoPreview: false })
 })
 
 it('rejects invalid imports before replacing settings', () => {

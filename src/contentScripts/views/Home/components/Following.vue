@@ -4,6 +4,7 @@ import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useWindowedFeed } from '~/composables/useWindowedFeed'
 import type { GridLayoutType } from '~/logic'
 import { settings } from '~/logic'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { FollowingLiveResult, List as FollowingLiveItem } from '~/models/live/getFollowingLiveList'
 import type { DataItem as MomentItem, MomentResult } from '~/models/moment/moment'
 import api from '~/utils/api'
@@ -21,8 +22,9 @@ let offset = ''
 let updateBaseline = ''
 let livePage = 1
 let liveFinished = false
-const { items: videoList, isLoading, noMoreContent, needToLoginFirst, windowFull, loadFailed, load: getData, reset: initData, continueWindow } = useWindowedFeed<VideoElement>({
+const { visibleItems: videoList, isLoading, noMoreContent, needToLoginFirst, windowFull, loadFailed, load: getData, reset: initData, continueWindow } = useWindowedFeed<VideoElement>({
   key: video => video.uniqueId,
+  isVisible: video => !shouldHideChargeExclusive(video.item?.modules.module_dynamic.major.archive),
   minPages: 3,
   resetCursor: () => {
     offset = ''
@@ -65,7 +67,7 @@ const { items: videoList, isLoading, noMoreContent, needToLoginFirst, windowFull
           return { items: [], done: true }
         // Livestreams are optional: their failure must not block followed videos.
         liveFinished = true
-        console.warn('[BewlyBewly] Could not load followed livestreams', error)
+        console.warn('[BewlyBruce] Could not load followed livestreams', error)
       }
     }
     const response: MomentResult = await api.moment.getMoments({ type: 'video', offset, update_baseline: updateBaseline })

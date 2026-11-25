@@ -61,7 +61,9 @@ iframe_drawer:
 settings:
   group_playback_page: 播放页面
   block_related_videos: 屏蔽相关推荐
-  block_related_videos_desc: 隐藏播放页及播放器中的推荐内容，保留分 P、合集和选集。
+  block_related_videos_desc: 隐藏播放页及播放器中的推荐内容，同时关闭自动连播。保留分 P、合集和选集。
+  block_charge_exclusive: 屏蔽充电专属
+  block_charge_exclusive_desc: 根据网页视频列表提供的标记隐藏充电专属视频，保留明确标为限时免费的内容。收藏页照常显示。
   series_always_visible: 详情始终显示，无需悬停或点击。
   series_behavior_hint: 实际卡片按此设置显示详情；预览始终呈现展开结果。
   series_behavior: 显示行为
@@ -100,9 +102,10 @@ settings:
   menu_general: 常规
   menu_desktop_and_dock: 桌面和 Dock 栏
   menu_appearance: 外观
-  menu_bewly_pages: BewlyBewly 页面
+  menu_bewly_pages: BewlyBruce 页面
   menu_search_page: 搜索页
   menu_home: 首页
+  menu_video: 视频
   menu_compatibility: 兼容性
   menu_about: 关于
 
@@ -192,8 +195,8 @@ settings:
   use_old_top_bar: 使用旧版顶栏
   auto_hide_top_bar: 自动隐藏顶栏
   show_top_bar_theme_color_gradient: 在顶栏显示主题色渐变（仅在暗色模式下有效）
-  show_bewly_or_bili_top_bar_switcher: 显示 BewlyBewly/Bilibili 顶栏切换器
-  show_bewly_or_bili_page_switcher: 显示 BewlyBewly/Bilibili 页面切换器
+  show_bewly_or_bili_top_bar_switcher: 显示 BewlyBruce/Bilibili 顶栏切换器
+  show_bewly_or_bili_page_switcher: 显示 BewlyBruce/Bilibili 页面切换器
   top_bar_icon_badges: 图标角标
   top_bar_icon_badges_opt:
     number: 数字
@@ -241,7 +244,7 @@ settings:
   customize_css: 自定义 CSS
   customize_css_desc: |-
     如果你不熟悉 CSS，请不要修改 CSS。否则可能会导致意外的显示问题。
-    如果在你修改 CSS 后遇到任何问题，请重新安装 BewlyBewly。
+    如果在你修改 CSS 后遇到任何问题，请重新安装 BewlyBruce。
 
   # Search page
   logo_color: Logo 颜色
@@ -258,8 +261,8 @@ settings:
   # Home
   recommendation_mode: 推荐模式
   recommendation_mode_desc: |
-    如果您想使用 app 端的推荐算法，请先授权 BewlyBewly 使用 access key。
-  authorize_app: 授权 BewlyBewly 使用 access key
+    如果您想使用 app 端的推荐算法，请先授权 BewlyBruce 使用 access key。
+  authorize_app: 授权 BewlyBruce 使用 access key
   authorize_app_desc: |
     授权使用后能在首页推送 bilibili App 端算法的推荐视频，授权 key 有效期约为一个月，过后记得重新授权获取 access key。
   authorize_app_more_info_access_key: 关于 access key
@@ -306,12 +309,12 @@ settings:
   # Compatibility
   # Common
   topbar_visibility: 顶栏可见性
-  topbar_visibility_desc: 如果您正在使用 Bilibili Evolved 的顶栏，您可以在这里关闭 BewlyBewly 的顶栏。
+  topbar_visibility_desc: 如果您正在使用 Bilibili Evolved 的顶栏，您可以在这里关闭 BewlyBruce 的顶栏。
   use_original_bilibili_homepage: 使用原版 Bilibili 首页
   use_original_bilibili_homepage_desc: 在您更改此设置后，如果在首页上，页面将自动刷新！
   use_original_bilibili_topbar: 使用原版 Bilibili 顶栏
   adapt_to_other_page_styles: 适应其他页面样式
-  adapt_to_other_page_styles_desc: 适应一些常见页面，以与 BewlyBewly 主题相匹配。
+  adapt_to_other_page_styles_desc: 适应一些常见页面，以与 BewlyBruce 主题相匹配。
   # Bilibili Evolved
   follow_bilibili_evolved_color: 使用 Bilibili Evolved 主题色
   follow_bilibili_evolved_color_desc: 每次选完 Bilibili Evolved 主题色时，记得重新选中这一选项以更新配置。
@@ -332,10 +335,10 @@ settings:
   contributors: 贡献者
 
 auth:
-  auth_access_key_first: 在这之前请先授权 BewlyBewly 使用 access key
+  auth_access_key_first: 在这之前请先授权 BewlyBruce 使用 access key
 
 topbar:
-  switch_to_bewly_top_bar: 切换到 BewlyBewly 顶栏
+  switch_to_bewly_top_bar: 切换到 BewlyBruce 顶栏
   switch_to_bili_top_bar: 切换到 Bilibili/Bilibili-Evolved 顶栏
 
   sign_in: 登录
@@ -346,6 +349,7 @@ topbar:
   watch_later: 稍后再看
   creative_center: 创作中心
   upload: 投稿
+  channels: 分区
   logo_dropdown:
     anime: 番剧
     movies: 电影
@@ -437,6 +441,8 @@ dock:
 video_card:
   operation:
     not_interested: 不感兴趣
+    block_uploader: 屏蔽投稿人
+    more_actions: 视频选项
     open_in_new_tab: 新标签页打开
     open_in_background: 后台打开
     open_in_new_window: 新窗口打开
@@ -451,6 +457,12 @@ video_card:
 
   group_contribution: '{firstAuthor} 等 {num} 人联合创作'
   video_removed: 视频已移除
+  uploader_blocked: 已屏蔽 {name}
+  blocked_uploaders: 已屏蔽的投稿人
+  blocked_uploaders_desc: 按主投 UID 隐藏视频，名单保存在当前浏览器。正在关注和 App 推荐照常显示。
+  blocked_uploaders_empty: 暂无屏蔽的投稿人
+  unblock_uploader: 移除屏蔽
+  load_more: 加载更多
 
 home:
   series_plays: 播放量
@@ -508,6 +520,21 @@ history:
     你确定要开启观看历史吗？
 
 favorites:
+  own_folders: 我创建的收藏夹
+  saved_categories: 我追的合集/收藏夹
+  own_short: 我的收藏
+  saved_short: 合集
+  reorder_category: 拖动调整「{title}」的顺序，也可用方向键移动
+  show_own_folders: 切换到我创建的收藏夹
+  show_saved_categories: 切换到我追的合集/收藏夹
+  no_saved_categories: 暂无追的合集或收藏夹
+  search_collection: 搜索当前合集
+  make_public: 「{folder}」为私有，点击可设为公开
+  make_private: 「{folder}」为公开，点击可设为私有
+  confirm_public: 3 秒内再次点击，将「{folder}」设为公开
+  confirm_private: 3 秒内再次点击，将「{folder}」设为私有
+  now_public: 「{folder}」已设为公开
+  now_private: 「{folder}」已设为私有
   folders: 收藏夹
   search: 搜索当前收藏夹
   batch_manage: 批量管理

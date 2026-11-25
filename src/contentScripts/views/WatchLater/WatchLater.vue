@@ -5,7 +5,10 @@ import { useToast } from 'vue-toastification'
 
 import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useBewlyApp } from '~/composables/useAppProvider'
+import { provideVideoCardState } from '~/composables/useVideoCardState'
 import { settings } from '~/logic'
+import { filterBlockedUploaders } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { List as VideoItem, WatchLaterResult } from '~/models/video/watchLater'
 import { useMainStore } from '~/stores/mainStore'
 import api from '~/utils/api'
@@ -23,9 +26,12 @@ const loadFailed = ref(false)
 const isUpdating = ref(false)
 // This endpoint returns the complete server list. Keep one shallow array; virtualize its DOM.
 const allWatchLaterList = shallowRef<VideoItem[]>([])
-const watchLaterCount = computed(() => allWatchLaterList.value.length)
+const visibleWatchLaterList = computed(() => filterBlockedUploaders(allWatchLaterList.value, item => item.owner?.mid)
+  .filter(item => !shouldHideChargeExclusive(item)))
+const watchLaterCount = computed(() => visibleWatchLaterList.value.length)
 const { handlePageRefresh, handleReachBottom } = useBewlyApp()
 const generation = requestGeneration()
+const cardStates = provideVideoCardState()
 let alive = true
 
 onMounted(() => {
@@ -53,6 +59,7 @@ async function initData() {
       return
     if (res.code !== 0)
       throw new Error(res.message)
+    cardStates.clear()
     allWatchLaterList.value = res.data?.list ?? []
   }
   catch {
@@ -137,14 +144,12 @@ function handleMouseEnter(item: VideoItem) {
       <Button v-if="loadFailed" class="my-4" @click="initData">
         {{ $t('common.retry') }}
       </Button>
-      <Empty v-if="watchLaterCount === 0 && !isLoading" />
+      <Empty v-if="!visibleWatchLaterList.length && !isLoading" />
       <template v-else>
         <!-- watcher later list -->
-        <VirtualFeed :items="allWatchLaterList" :item-key="item => item.aid">
+        <VirtualFeed :items="visibleWatchLaterList" :item-key="item => item.aid">
           <template #default="{ item, index }">
-            <ALink
-              :href="`https://www.bilibili.com/list/watchlater?bvid=${item.bvid}`"
-              type="videoCard"
+            <div
               class="group"
               flex cursor-pointer
               @mouseenter="handleMouseEnter(item)"
@@ -158,6 +163,13 @@ function handleMouseEnter(item: VideoItem) {
                 p-2 m-1
                 content-visibility-auto
               >
+                <ALink
+                  :href="`https://www.bilibili.com/list/watchlater?bvid=${item.bvid}`"
+                  type="videoCard"
+                  :aria-label="item.title"
+                  pos="absolute inset-0" z-1
+                  rounded="$bew-radius"
+                />
                 <!-- Cover -->
                 <div
                   pos="relative"
@@ -213,6 +225,13 @@ function handleMouseEnter(item: VideoItem) {
                       "
                     />
                   </div>
+                  <VideoListModeration
+                    :video-id="item.aid"
+                    :bvid="item.bvid"
+                    :uploader-mid="item.owner?.mid"
+                    :uploader-name="item.owner?.name"
+                    :uploader-avatar="item.owner?.face"
+                  />
                 </div>
 
                 <!-- Description -->
@@ -220,6 +239,7 @@ function handleMouseEnter(item: VideoItem) {
                   <div flex="~ col">
                     <a
                       class="keep-two-lines fixed-title-height"
+                      relative z-2
                       overflow="hidden"
                       un-text="lg overflow-ellipsis"
                       @click.stop.prevent="handleLinkClick(`https://www.bilibili.com/list/watchlater?bvid=${item.bvid}`)"
@@ -228,6 +248,7 @@ function handleMouseEnter(item: VideoItem) {
                     </a>
                     <a
                       un-text="$bew-text-2 sm"
+                      relative z-2
                       m="t-4 b-2"
                       flex="~"
                       items-center
@@ -265,6 +286,7 @@ function handleMouseEnter(item: VideoItem) {
 
                     <button
                       text="2xl $bew-text-3"
+                      relative z-2
                       hover:color="$bew-theme-color"
                       opacity-0 group-hover:opacity-100
                       p-2
@@ -277,7 +299,7 @@ function handleMouseEnter(item: VideoItem) {
                   </div>
                 </div>
               </section>
-            </ALink>
+            </div>
           </template>
         </VirtualFeed>
         <!-- loading -->
@@ -337,7 +359,7 @@ function handleMouseEnter(item: VideoItem) {
           <h3 text="3xl white" fw-600 style="text-shadow: 0 0 12px rgba(0,0,0,.3)">
             {{ t('watch_later.title') }} ({{ watchLaterCount }})
           </h3>
-          <p v-if="watchLaterCount > 0" flex="~ col" gap-4>
+          <p v-if="allWatchLaterList.length" flex="~ col" gap-4>
             <Button
               color="rgba(255,255,255,.35)" block text-color="white" strong flex-1
               @click="handlePlayAll"

@@ -16,6 +16,33 @@ const transferRequest = {
 }
 
 const API_FAVORITE = {
+  getCollectedFolders: {
+    url: 'https://api.bilibili.com/x/v3/fav/folder/collected/list',
+    _fetch: { method: 'get' },
+    params: { up_mid: '', pn: 1, ps: 20, platform: 'web' },
+    afterHandle: AHS.J_D,
+  },
+  getFavoriteSeason: {
+    url: 'https://api.bilibili.com/x/space/fav/season/list',
+    _fetch: { method: 'get' },
+    params: { season_id: 0, pn: 1, ps: 20 },
+    afterHandle: AHS.J_D,
+  },
+  getFavoriteFolderInfo: {
+    url: 'https://api.bilibili.com/x/v3/fav/folder/info',
+    _fetch: { method: 'get' },
+    params: { media_id: 0 },
+    afterHandle: AHS.J_D,
+  },
+  editFavoriteFolder: {
+    url: 'https://api.bilibili.com/x/v3/fav/folder/edit',
+    _fetch: {
+      method: 'post',
+      headers: formHeaders,
+      body: { media_id: 0, title: '', intro: '', cover: '', privacy: 0, csrf: '' },
+    },
+    afterHandle: AHS.J_D,
+  },
   // https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/docs/fav/info.md#%E8%8E%B7%E5%8F%96%E6%8C%87%E5%AE%9A%E7%94%A8%E6%88%B7%E5%88%9B%E5%BB%BA%E7%9A%84%E6%89%80%E6%9C%89%E6%94%B6%E8%97%8F%E5%A4%B9%E4%BF%A1%E6%81%AF
   getFavoriteCategories: {
     url: 'https://api.bilibili.com/x/v3/fav/folder/created/list-all',

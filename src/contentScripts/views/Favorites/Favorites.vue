@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
+import draggable from 'vuedraggable'
+import browser from 'webextension-polyfill'
 
 import Dialog from '~/components/Dialog.vue'
-import type { FavoriteCategory, FavoriteResource } from '~/components/TopBar/types'
 import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useBewlyApp } from '~/composables/useAppProvider'
+import { useFavoriteSeason } from '~/composables/useFavoriteSeason'
 import { useWindowedFeed } from '~/composables/useWindowedFeed'
 import { TOP_BAR_VISIBILITY_CHANGE } from '~/constants/globalEvents'
 import { settings } from '~/logic'
-import type { FavoritesResult, Media as FavoriteItem } from '~/models/video/favorite'
+import { blockedUploaders, isUploaderBlocked } from '~/logic/blockedUploaders'
+import type { CollectedCategory, CollectedFoldersResult, FavoriteSeasonVideo, FavoritesResult, Info as FavoriteFolderInfo, Media } from '~/models/video/favorite'
 import type { FavoritesCategoryResult, List as CategoryItem } from '~/models/video/favoriteCategory'
 import api from '~/utils/api'
+import type { FavoriteCategoryOrderUpdate } from '~/utils/favoriteCategoryOrder'
+import { orderFavoriteCategories } from '~/utils/favoriteCategoryOrder'
 import { getCSRF, getUserID, openLinkToNewTab, removeHttpFromUrl } from '~/utils/main'
 import emitter from '~/utils/mitt'
 
@@ -20,39 +25,62 @@ const toast = useToast()
 
 type TransferAction = 'copy' | 'move'
 type SelectedAction = 'unfavorite' | TransferAction
+type FavoriteItem = FavoriteSeasonVideo & Pick<Media, 'type' | 'link'>
+const FOLDER_TYPE = 11
+const SEASON_TYPE = 21
 
 const favoriteCategories = shallowRef<CategoryItem[]>([])
-const selectedCategory = ref<FavoriteCategory>()
+const selectedCategory = ref<CategoryItem>()
+const browseSaved = ref(false)
+const savedCategories = shallowRef<CollectedCategory[]>()
+const savingOrder = ref(false)
+const selectedSaved = ref<CollectedCategory>()
+const activeCategory = computed(() => browseSaved.value ? selectedSaved.value : selectedCategory.value)
+const sidebarCategories = computed(() => browseSaved.value ? savedCategories.value ?? [] : favoriteCategories.value)
+const sidebarLabel = computed(() => t(browseSaved.value ? 'favorites.saved_categories' : 'favorites.own_folders'))
+const isSeason = computed(() => browseSaved.value && selectedSaved.value?.type === SEASON_TYPE)
+const season = useFavoriteSeason(() => getCSRF() ? getUserID() : '')
+const searchLabel = computed(() => t(isSeason.value ? 'favorites.search_collection' : 'favorites.search'))
+const armedPrivacy = ref<{ id: number, until: number }>()
+const savingPrivacy = ref<number>()
+let privacyTimer: ReturnType<typeof setTimeout> | undefined
 const activatedCategoryCover = ref('')
+const categoryCover = computed(() => (isSeason.value ? season.content.value?.cover : undefined) || activatedCategoryCover.value)
 const shouldMoveCtrlBarUp = ref(false)
 const keyword = ref('')
+const query = ref('')
 const categoriesLoading = ref(false)
 const categoriesFailed = ref(false)
 const batchMode = ref(false)
-const selectedKeys = reactive(new Set<string>())
+const selectedKeys = reactive(new Map<string, number | undefined>())
 const isUpdating = ref(false)
 const reconciliation = ref<{ source: boolean, destination?: number }>()
 const actionsDisabled = computed(() => isUpdating.value || !!reconciliation.value)
+const canReorder = computed(() => browseSaved.value && !categoriesLoading.value && !actionsDisabled.value
+  && !savingOrder.value && (savedCategories.value?.length ?? 0) > 1)
 const transferAction = ref<TransferAction>()
 const targetFolderID = ref<number>()
 const destinationFolders = computed(() => favoriteCategories.value.filter(folder => folder.id !== selectedCategory.value?.id))
 const { handleBackToTop } = useBewlyApp()
 let currentPageNum = 1
-let query = ''
 let alive = true
 let categoryGeneration = 0
+let categoriesAccount = ''
+const PAGE_SIZE = 20
 
 const {
-  items: favoriteResources,
-  isLoading,
-  noMoreContent,
-  loadFailed,
-  windowFull,
-  load,
+  visibleItems: folderResources,
+  isLoading: folderLoading,
+  noMoreContent: folderDone,
+  loadFailed: folderFailed,
+  windowFull: folderWindowFull,
+  load: loadFolder,
   reset,
   continueWindow,
 } = useWindowedFeed<FavoriteItem>({
   key: favoriteKey,
+  isVisible: item => !isUploaderBlocked(favoriteUploaderMid(item)),
+  pageRefresh: (): Promise<void> => isSeason.value ? season.refresh() : reset(),
   scrollTarget: () => 0,
   beforeLoading: () => {},
   afterLoading: () => {},
@@ -64,40 +92,83 @@ const {
   loadPage: async (current) => {
     if (!getCSRF())
       return { items: [], done: true, unauthorized: true }
-    const category = selectedCategory.value
-    if (!category)
+    const saved = browseSaved.value
+    const category = activeCategory.value
+    if (!category || isSeason.value)
       return { items: [], done: true }
     const res: FavoritesResult = await api.favorite.getFavoriteResources({
       media_id: category.id,
       pn: currentPageNum,
-      keyword: query,
+      keyword: query.value,
     })
-    if (!current())
+    if (!current() || browseSaved.value !== saved)
       return { items: [], done: true }
     if (res.code !== 0)
       throw new Error(res.message)
     currentPageNum++
     activatedCategoryCover.value = res.data.info.cover
-    favoriteCategories.value = favoriteCategories.value.map(item => item.id === category.id && item.media_count !== res.data.info.media_count
-      ? { ...item, media_count: res.data.info.media_count }
-      : item)
+    if (!saved) {
+      favoriteCategories.value = favoriteCategories.value.map(item => item.id === category.id && item.media_count !== res.data.info.media_count
+        ? { ...item, media_count: res.data.info.media_count }
+        : item)
+    }
     const items = res.data.medias ?? []
     return { items, done: !items.length || res.data.has_more === false }
   },
 })
+const seasonResources = computed(() => (season.content.value?.items ?? []).map(item => ({ ...item, type: 2, link: '' })))
+const favoriteResources = computed(() => {
+  if (!isSeason.value)
+    return folderResources.value
+  const search = query.value.toLowerCase()
+  return seasonResources.value.filter(item => !isUploaderBlocked(favoriteUploaderMid(item)) && item.title.toLowerCase().includes(search))
+})
+const isLoading = computed(() => isSeason.value ? season.isLoading.value : folderLoading.value)
+const noMoreContent = computed(() => isSeason.value ? !!season.content.value : folderDone.value)
+const loadFailed = computed(() => isSeason.value ? season.loadFailed.value : folderFailed.value)
+const windowFull = computed(() => !isSeason.value && folderWindowFull.value)
 const isFullPageLoading = computed(() => categoriesLoading.value || (isLoading.value && !favoriteResources.value.length))
 const allLoadedSelected = computed(() => favoriteResources.value.length > 0 && favoriteResources.value.every(item => selectedKeys.has(favoriteKey(item))))
 
-function favoriteKey(item: FavoriteResource) {
+function favoriteKey(item: FavoriteItem) {
   return `${item.id}:${item.type}`
 }
 
-function toggleSelection(key: string) {
+function load() {
+  return isSeason.value ? season.refresh() : loadFolder()
+}
+
+watch(season.content, (content) => {
+  const selected = selectedSaved.value
+  if (!content || !selected || !isSeason.value)
+    return
+  const title = content.title || selected.title
+  const cover = content.cover || selected.cover
+  if (title === selected.title && cover === selected.cover && content.count === selected.media_count)
+    return
+  const updated = { ...selected, title, cover, media_count: content.count }
+  selectedSaved.value = updated
+  savedCategories.value = savedCategories.value?.map(item => categoryKey(item) === categoryKey(updated) ? updated : item)
+})
+
+function categoryKey(item: CategoryItem | CollectedCategory) {
+  return `${'attr' in item ? 'own' : item.type}:${item.id}`
+}
+
+function toggleSelection(item: FavoriteItem) {
+  const key = favoriteKey(item)
   if (selectedKeys.has(key))
     selectedKeys.delete(key)
   else
-    selectedKeys.add(key)
+    selectedKeys.set(key, favoriteUploaderMid(item))
 }
+
+watch(blockedUploaders, () => {
+  for (const [key, mid] of selectedKeys) {
+    if (isUploaderBlocked(mid))
+      selectedKeys.delete(key)
+  }
+})
 
 function toggleLoadedSelection() {
   const deselect = allLoadedSelected.value
@@ -106,7 +177,7 @@ function toggleLoadedSelection() {
     if (deselect)
       selectedKeys.delete(key)
     else
-      selectedKeys.add(key)
+      selectedKeys.set(key, favoriteUploaderMid(item))
   }
 }
 
@@ -136,23 +207,53 @@ onMounted(() => {
   emitter.on(TOP_BAR_VISIBILITY_CHANGE, handleTopBarVisibility)
   void initData()
 })
+onActivated(() => {
+  if (categoriesAccount !== getUserID())
+    void initData()
+  else if (isSeason.value)
+    void season.open(selectedSaved.value?.id)
+})
 onBeforeUnmount(() => {
   alive = false
+  season.clear()
+  cancelPrivacy()
   categoryGeneration++
   emitter.off(TOP_BAR_VISIBILITY_CHANGE, handleTopBarVisibility)
 })
 
 async function initData() {
+  const account = getUserID()
+  if (categoriesAccount !== account) {
+    categoriesAccount = account
+    savedCategories.value = undefined
+    selectedSaved.value = undefined
+    favoriteCategories.value = []
+    selectedCategory.value = undefined
+    season.clear()
+  }
   if (!getCSRF())
     return
   const token = ++categoryGeneration
   categoriesLoading.value = true
   categoriesFailed.value = false
   try {
+    if (browseSaved.value) {
+      const fresh = await fetchSavedCategories()
+      if (!alive || token !== categoryGeneration || account !== getUserID())
+        return
+      const items = await syncSavedOrder(fresh, account)
+      if (!alive || token !== categoryGeneration || account !== getUserID())
+        return
+      savedCategories.value = items
+      categoriesLoading.value = false
+      await changeSavedCategory(items.find(item => item.id === selectedSaved.value?.id && item.type === selectedSaved.value.type) ?? items[0])
+      return
+    }
     const categories = await fetchCategories()
-    if (!alive || token !== categoryGeneration)
+    if (!alive || token !== categoryGeneration || account !== getUserID())
       return
     favoriteCategories.value = categories
+    categoriesLoading.value = false
     const category = categories.find(item => item.id === selectedCategory.value?.id) ?? categories[0]
     if (category) {
       await changeCategory(category)
@@ -179,28 +280,200 @@ async function fetchCategories() {
   return res.data?.list ?? []
 }
 
-async function changeCategory(categoryItem: FavoriteCategory) {
+async function fetchSavedCategories() {
+  const items: CollectedCategory[] = []
+  const seen = new Set<string>()
+  const mid = getUserID()
+  for (let page = 1; ; page++) {
+    if (!alive || !browseSaved.value || getUserID() !== mid)
+      return []
+    const res: CollectedFoldersResult = await api.favorite.getCollectedFolders({ up_mid: mid, pn: page, ps: PAGE_SIZE })
+    if (res.code !== 0 || !res.data)
+      throw new Error(res.message)
+    const batch = res.data.list ?? []
+    const size = seen.size
+    for (const { id, mid, type, title, cover, media_count } of batch) {
+      const key = `${type}:${id}`
+      if ((type === FOLDER_TYPE || type === SEASON_TYPE) && !seen.has(key))
+        items.push({ id, mid, type, title, cover, media_count })
+      seen.add(key)
+    }
+    if (!res.data.has_more)
+      return items
+    if (seen.size === size)
+      throw new Error('Collected folders pagination stalled')
+  }
+}
+
+async function toggleSavedMode() {
+  if (actionsDisabled.value || categoriesLoading.value)
+    return
+  browseSaved.value = !browseSaved.value
+  if (!browseSaved.value)
+    season.clear()
+  cancelPrivacy()
+  await initData()
+}
+
+function isPrivateFolder(folder: { attr: number }) {
+  return (folder.attr & 1) === 1
+}
+
+async function saveCategoryOrder(items: CollectedCategory[], account: string, mode: FavoriteCategoryOrderUpdate['mode']) {
+  const update: FavoriteCategoryOrderUpdate = { account, mode, keys: items.map(categoryKey) }
+  const order: unknown = await browser.runtime.sendMessage({ favoriteCategoryOrderUpdate: update })
+  if (!Array.isArray(order) || !order.every(key => typeof key === 'string'))
+    throw new Error('Could not save followed collection order')
+  return orderFavoriteCategories(items, order, categoryKey)
+}
+
+async function syncSavedOrder(items: CollectedCategory[], account: string) {
+  try {
+    return await saveCategoryOrder(items, account, 'sync')
+  }
+  catch {
+    return orderFavoriteCategories(items, savedCategories.value?.map(categoryKey) ?? [], categoryKey)
+  }
+}
+
+async function reorderSavedCategories(items: CollectedCategory[]) {
+  const account = getUserID()
+  const previous = savedCategories.value
+  if (!canReorder.value || !account || !previous)
+    return
+  const current = () => alive && account === getUserID() && browseSaved.value
+  savingOrder.value = true
+  savedCategories.value = items
+  try {
+    await saveCategoryOrder(items, account, 'reorder')
+  }
+  catch {
+    if (current()) {
+      savedCategories.value = orderFavoriteCategories(savedCategories.value ?? [], previous.map(categoryKey), categoryKey)
+      toast.error(t('common.operation_failed'))
+    }
+  }
+  finally {
+    savingOrder.value = false
+  }
+}
+
+function moveSavedCategory(item: CollectedCategory, offset: number) {
+  const source = savedCategories.value
+  if (!canReorder.value || !source)
+    return
+  const index = source.findIndex(category => categoryKey(category) === categoryKey(item))
+  const target = index + offset
+  if (index < 0 || target < 0 || target >= source.length)
+    return
+  const reordered = [...source]
+  reordered.splice(target, 0, ...reordered.splice(index, 1))
+  void reorderSavedCategories(reordered)
+}
+
+function privacyLabel(folder: CategoryItem) {
+  const isPrivate = isPrivateFolder(folder)
+  const key = armedPrivacy.value?.id === folder.id
+    ? (isPrivate ? 'confirm_public' : 'confirm_private')
+    : (isPrivate ? 'make_public' : 'make_private')
+  return t(`favorites.${key}`, { folder: folder.title })
+}
+
+function cancelPrivacy() {
+  clearTimeout(privacyTimer)
+  armedPrivacy.value = undefined
+}
+
+async function handlePrivacy(folder: CategoryItem) {
+  const csrf = getCSRF()
+  const mid = getUserID()
+  if (actionsDisabled.value || !csrf || !mid)
+    return
+  const armed = armedPrivacy.value
+  cancelPrivacy()
+  if (!armed || armed.id !== folder.id || armed.until <= performance.now()) {
+    armedPrivacy.value = { id: folder.id, until: performance.now() + 3000 }
+    privacyTimer = setTimeout(cancelPrivacy, 3000)
+    return
+  }
+
+  const makePrivate = !isPrivateFolder(folder)
+  isUpdating.value = true
+  savingPrivacy.value = folder.id
+  try {
+    const result: { code: number, data?: FavoriteFolderInfo } = await api.favorite.getFavoriteFolderInfo({ media_id: folder.id })
+    const info = result.data
+    if (!alive || getUserID() !== mid || getCSRF() !== csrf)
+      return
+    if (result.code !== 0 || !info || String(info.mid) !== mid)
+      throw new Error('Favorite folder is unavailable')
+
+    if (makePrivate !== isPrivateFolder(info)) {
+      const update = await api.favorite.editFavoriteFolder({
+        media_id: folder.id,
+        title: info.title,
+        intro: info.intro,
+        cover: info.cover,
+        privacy: makePrivate ? 1 : 0,
+        csrf,
+      })
+      if (update?.code !== 0)
+        throw new Error(update?.message)
+    }
+    if (!alive || getUserID() !== mid)
+      return
+    const attr = makePrivate ? info.attr | 1 : info.attr & ~1
+    favoriteCategories.value = favoriteCategories.value.map(item => item.id === folder.id ? { ...item, attr } : item)
+    if (selectedCategory.value?.id === folder.id)
+      selectedCategory.value = { ...selectedCategory.value, attr }
+    toast.success(t(makePrivate ? 'favorites.now_private' : 'favorites.now_public', { folder: folder.title }))
+  }
+  catch {
+    if (alive)
+      toast.error(t('common.operation_failed'))
+  }
+  finally {
+    isUpdating.value = false
+    savingPrivacy.value = undefined
+  }
+}
+
+async function changeSavedCategory(collection?: CollectedCategory) {
+  selectedSaved.value = collection
+  await resetCategoryView(collection?.cover)
+}
+
+async function changeCategory(categoryItem: CategoryItem) {
   if (actionsDisabled.value)
     return
-  closeBatchMode()
   selectedCategory.value = categoryItem
-  activatedCategoryCover.value = ''
-  query = ''
+  await resetCategoryView()
+}
+
+async function resetCategoryView(cover = '') {
+  closeBatchMode()
+  activatedCategoryCover.value = cover
+  query.value = ''
   keyword.value = ''
   handleBackToTop()
-  await reset()
+  await Promise.all([reset(), season.open(isSeason.value ? selectedSaved.value?.id : undefined)])
 }
 
 function handleSearch() {
   if (actionsDisabled.value)
     return
-  query = keyword.value.trim()
+  query.value = keyword.value.trim()
   handleBackToTop()
-  void reset()
+  if (!isSeason.value)
+    void reset()
 }
 
 function handlePlayAll() {
-  openLinkToNewTab(`https://www.bilibili.com/list/ml${selectedCategory.value?.id}`)
+  const category = activeCategory.value
+  if (!category)
+    return
+  const destination = isSeason.value ? `${category.mid}/?sid=${category.id}` : `ml${category.id}`
+  openLinkToNewTab(`https://www.bilibili.com/list/${destination}`)
 }
 
 function jumpToLoginPage() {
@@ -247,7 +520,7 @@ function handleTransfer() {
   const action = transferAction.value
   const target = destinationFolders.value.find(folder => folder.id === targetFolderID.value)
   if (action && target)
-    void runSelectedAction(action, [...selectedKeys], target.id)
+    void runSelectedAction(action, [...selectedKeys.keys()], target.id)
 }
 
 async function runSelectedAction(action: SelectedAction, keys: string[], destinationID?: number) {
@@ -344,8 +617,13 @@ async function retryReconciliation() {
   }
 }
 
-function isMusic(item: FavoriteResource) {
+function isMusic(item: FavoriteItem) {
   return item.link.includes('bilibili://music')
+}
+
+function favoriteUploaderMid(item: FavoriteItem) {
+  if (!isMusic(item) && item.bvid)
+    return item.upper?.mid
 }
 </script>
 
@@ -366,16 +644,17 @@ function isMusic(item: FavoriteResource) {
           <Input
             v-model="keyword"
             class="favorites-search"
-            :placeholder="t('favorites.search')"
-            :aria-label="t('favorites.search')"
-            :disabled="actionsDisabled"
+            :placeholder="searchLabel"
+            :aria-label="searchLabel"
+            :disabled="actionsDisabled || categoriesLoading || !activeCategory"
             @enter="handleSearch"
           />
-          <Button type="primary" :aria-label="t('favorites.search')" :disabled="actionsDisabled" @click="handleSearch">
+          <Button type="primary" :aria-label="searchLabel" :disabled="actionsDisabled || categoriesLoading || !activeCategory" @click="handleSearch">
             <div i-tabler:search aria-hidden="true" />
           </Button>
         </div>
         <div
+          v-if="!browseSaved"
           flex="~ wrap items-center justify-end gap-2"
           ml-auto max-w-full self-center
           :aria-busy="isUpdating"
@@ -391,7 +670,7 @@ function isMusic(item: FavoriteResource) {
             <Button size="small" :disabled="actionsDisabled || !selectedKeys.size || !destinationFolders.length" @click="openTransferDialog('move')">
               {{ t('favorites.move_to') }}
             </Button>
-            <Button size="small" type="error" :disabled="actionsDisabled || !selectedKeys.size" @click="handleUnfavorite([...selectedKeys])">
+            <Button size="small" type="error" :disabled="actionsDisabled || !selectedKeys.size" @click="handleUnfavorite([...selectedKeys.keys()])">
               {{ t('favorites.unfavorite') }}
             </Button>
             <Button size="small" :disabled="actionsDisabled || !selectedCategory" @click="handleClean">
@@ -420,19 +699,24 @@ function isMusic(item: FavoriteResource) {
       <Button v-else-if="loadFailed" :disabled="actionsDisabled" @click="load">
         {{ $t('common.retry') }}
       </Button>
-      <Empty v-if="favoriteResources.length === 0 && !isFullPageLoading" mb-6 />
+      <Empty v-if="favoriteResources.length === 0 && !isFullPageLoading" mb-6 :description="browseSaved && savedCategories?.length === 0 ? t('favorites.no_saved_categories') : undefined" />
       <template v-else>
         <Transition name="fade">
           <Loading v-if="isFullPageLoading" w-full h-full pos="absolute top-0 left-0" mt--50px />
         </Transition>
         <!-- favorite list -->
-        <VirtualFeed :items="favoriteResources" :item-key="favoriteKey" layout="adaptive" :column-offset="1" mb-6>
+        <VirtualFeed
+          v-if="!categoriesLoading && !categoriesFailed"
+          :items="favoriteResources" :item-key="favoriteKey"
+          layout="adaptive" :column-offset="1" mb-6
+        >
           <template #default="{ item, index }">
             <div relative>
               <div :inert="batchMode">
                 <VideoCard
                   :cover-loading="index < 8 ? 'eager' : 'lazy'"
                   reserve-title-space
+                  :uploader-block="!isMusic(item)"
                   :video="{
                     id: item.id,
                     duration: item.duration,
@@ -451,7 +735,7 @@ function isMusic(item: FavoriteResource) {
                   }"
                   group
                 >
-                  <template v-if="!batchMode" #coverTopLeft>
+                  <template v-if="!browseSaved && !batchMode" #coverTopLeft>
                     <button
                       p="x-2 y-1" m="1"
                       rounded="$bew-radius"
@@ -475,7 +759,7 @@ function isMusic(item: FavoriteResource) {
                 :aria-label="item.title"
                 :aria-pressed="selectedKeys.has(favoriteKey(item))"
                 :disabled="actionsDisabled"
-                @click="toggleSelection(favoriteKey(item))"
+                @click="toggleSelection(item)"
               >
                 <span class="favorite-selection-indicator" aria-hidden="true">
                   <span v-if="selectedKeys.has(favoriteKey(item))" i-tabler:check />
@@ -499,9 +783,16 @@ function isMusic(item: FavoriteResource) {
           />
         </Transition>
       </template>
+      <Button
+        v-if="activeCategory && !favoriteResources.length && !isFullPageLoading && !loadFailed && !noMoreContent"
+        :disabled="actionsDisabled"
+        @click="windowFull ? continueWindow() : load()"
+      >
+        {{ $t('video_card.load_more') }}
+      </Button>
     </main>
 
-    <aside v-if="favoriteCategories.length" relative min-w-0 w="full md:40% lg:30% xl:25%" order="1 md:2">
+    <aside relative min-w-0 w="full md:40% lg:30% xl:25%" order="1 md:2">
       <div
         class="md:sticky md:top-120px md:my-10"
         w-full h="auto md:[calc(100vh-160px)]"
@@ -518,8 +809,8 @@ function isMusic(item: FavoriteResource) {
             bg="$bew-fill-4"
           />
           <img
-            v-if="activatedCategoryCover"
-            :src="removeHttpFromUrl(`${activatedCategoryCover}@480w_270h_1c`)"
+            v-if="categoryCover"
+            :src="removeHttpFromUrl(`${categoryCover}@480w_270h_1c`)"
             w-full h-full object="cover center" blur-40px
             relative z--1
           >
@@ -538,7 +829,7 @@ function isMusic(item: FavoriteResource) {
             class="hidden md:block"
           >
             <img
-              v-if="activatedCategoryCover" :src="removeHttpFromUrl(`${activatedCategoryCover}@480w_270h_1c`)"
+              v-if="categoryCover" :src="removeHttpFromUrl(`${categoryCover}@480w_270h_1c`)"
               rounded="$bew-radius" aspect-video w-full object-cover
             >
             <div v-else aspect-video w-full>
@@ -547,36 +838,97 @@ function isMusic(item: FavoriteResource) {
           </picture>
 
           <h3 class="hidden md:block" text="3xl white" fw-600 style="text-shadow: 0 0 12px rgba(0,0,0,.3)">
-            {{ selectedCategory?.title }}
+            {{ activeCategory?.title }}
           </h3>
-          <div class="hidden md:block">
+          <div class="category-actions">
             <Button
-              color="rgba(255,255,255,.35)" block text-color="white" strong flex-1
+              class="category-action" block center
+              :disabled="categoriesLoading || !activeCategory?.media_count"
               @click="handlePlayAll"
             >
               <template #left>
-                <div i-tabler:player-play />
+                <div i-tabler:player-play aria-hidden="true" />
               </template>
-              {{ t('common.play_all') }}
+              <span truncate>{{ t('common.play_all') }}</span>
+            </Button>
+            <Button
+              class="category-action" block center
+              :disabled="categoriesLoading || actionsDisabled"
+              :aria-label="t(browseSaved ? 'favorites.show_own_folders' : 'favorites.show_saved_categories')"
+              :title="t(browseSaved ? 'favorites.show_own_folders' : 'favorites.show_saved_categories')"
+              :aria-pressed="browseSaved"
+              @click="toggleSavedMode"
+            >
+              <span truncate>{{ t(browseSaved ? 'favorites.own_short' : 'favorites.saved_short') }}</span>
             </Button>
           </div>
-          <ul
+          <draggable
+            tag="ul"
             class="category-list"
-            :aria-label="t('favorites.folders')"
+            :aria-label="sidebarLabel"
+            :model-value="sidebarCategories"
+            :item-key="categoryKey"
+            :disabled="!canReorder"
+            :force-fallback="true"
+            :fallback-tolerance="4"
+            :animation="140"
+            handle=".category-drag-handle"
+            ghost-class="category-row--dragged"
+            @update:model-value="reorderSavedCategories"
           >
-            <li v-for="item in favoriteCategories" :key="item.id">
-              <button
-                type="button"
-                class="category-button"
-                :aria-current="item.id === selectedCategory?.id ? 'true' : undefined"
-                :disabled="actionsDisabled"
-                @click="changeCategory(item)"
+            <template #item="{ element: item }">
+              <li
+                class="category-row"
+                :class="{ 'category-row--active': activeCategory && categoryKey(item) === categoryKey(activeCategory) }"
               >
-                <span>{{ item.title }}</span>
-                <span class="category-count">{{ item.media_count }}</span>
-              </button>
-            </li>
-          </ul>
+                <button
+                  v-if="!browseSaved && 'attr' in item"
+                  type="button"
+                  class="category-privacy"
+                  :class="{
+                    'category-privacy--private': isPrivateFolder(item),
+                    'category-privacy--armed': armedPrivacy?.id === item.id,
+                    'category-privacy--saving': savingPrivacy === item.id,
+                  }"
+                  :aria-label="privacyLabel(item)"
+                  :title="privacyLabel(item)"
+                  :disabled="actionsDisabled || categoriesLoading"
+                  @click="handlePrivacy(item)"
+                  @keydown.esc.stop="cancelPrivacy"
+                >
+                  <span v-if="savingPrivacy === item.id" i-tabler:loader-2 aria-hidden="true" />
+                  <span v-else-if="armedPrivacy?.id === item.id" i-tabler:check aria-hidden="true" />
+                  <span v-else-if="isPrivateFolder(item)" i-tabler:lock aria-hidden="true" />
+                  <span v-else i-tabler:lock-open aria-hidden="true" />
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="category-drag-handle"
+                  :aria-label="t('favorites.reorder_category', { title: item.title })"
+                  :title="t('favorites.reorder_category', { title: item.title })"
+                  :aria-disabled="!canReorder"
+                  @click.stop
+                  @keydown.up.prevent.stop="moveSavedCategory(item, -1)"
+                  @keydown.left.prevent.stop="moveSavedCategory(item, -1)"
+                  @keydown.down.prevent.stop="moveSavedCategory(item, 1)"
+                  @keydown.right.prevent.stop="moveSavedCategory(item, 1)"
+                >
+                  <span i-tabler:grip-vertical aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="category-button"
+                  :aria-current="activeCategory && categoryKey(item) === categoryKey(activeCategory) ? 'true' : undefined"
+                  :disabled="actionsDisabled || categoriesLoading"
+                  @click="'attr' in item ? changeCategory(item) : changeSavedCategory(item)"
+                >
+                  <span>{{ item.title }}</span>
+                  <span class="category-count">{{ item.media_count }}</span>
+                </button>
+              </li>
+            </template>
+          </draggable>
         </div>
       </div>
     </aside>
@@ -697,21 +1049,100 @@ function isMusic(item: FavoriteResource) {
   }
 }
 
+.category-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 6px;
+}
+
+.category-row {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--bew-radius);
+  background: var(--bew-fill-1);
+
+  &:hover,
+  &:focus-within,
+  &--active {
+    background: var(--bew-fill-3);
+  }
+}
+
+.category-privacy {
+  display: grid;
+  place-items: center;
+  border-radius: var(--bew-radius);
+
+  span {
+    opacity: 0;
+  }
+
+  &--private span,
+  &--armed span,
+  &--saving span,
+  &:hover span,
+  &:focus-visible span {
+    opacity: 1;
+  }
+
+  &:hover,
+  &--armed {
+    background: var(--bew-fill-3);
+  }
+
+  &--armed {
+    color: var(--bew-theme-color);
+  }
+}
+
+.category-privacy,
+.category-drag-handle {
+  flex: 0 0 34px;
+}
+
+.category-drag-handle {
+  display: grid;
+  place-items: center;
+  border-radius: var(--bew-radius);
+  touch-action: none;
+
+  span {
+    opacity: 0.7;
+  }
+
+  &[aria-disabled="false"] {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &:hover span,
+  &:focus-visible span {
+    opacity: 1;
+  }
+}
+
+.category-row--dragged {
+  opacity: 0.4;
+}
+
 .category-button {
   display: flex;
   width: 100%;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 12px;
+  padding-block: 6px;
+  padding-inline: 0 12px;
   border-radius: var(--bew-radius);
-  background: var(--bew-fill-1);
   white-space: nowrap;
+  text-align: start;
+}
 
-  &:hover,
-  &[aria-current="true"] {
-    background: var(--bew-fill-3);
-  }
-
+.category-button,
+.category-privacy,
+.category-drag-handle {
   &:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: -2px;
@@ -731,17 +1162,31 @@ function isMusic(item: FavoriteResource) {
     scrollbar-width: none;
   }
 
-  .category-button {
-    border-bottom: 1px solid rgb(255 255 255 / 20%);
+  .category-action {
+    color: white;
+    background: rgb(255 255 255 / 24%);
+    padding-inline: 8px;
+  }
+
+  .category-row {
     border-radius: 0;
     background: transparent;
     color: white;
-    white-space: normal;
 
     &:hover,
-    &[aria-current="true"] {
+    &:focus-within,
+    &--active {
       background: rgb(255 255 255 / 35%);
     }
+
+    & + & {
+      border-top: 1px solid rgb(255 255 255 / 20%);
+    }
+  }
+
+  .category-button {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 </style>

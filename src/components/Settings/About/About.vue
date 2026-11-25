@@ -7,7 +7,7 @@ import { originalSettings, settings } from '~/logic'
 import { parseSettings } from '~/logic/settings'
 import { cleanupWallpapers, wallpaperBytes } from '~/logic/wallpaperStorage'
 
-import { version } from '../../../../package.json'
+import { displayName, version } from '../../../../package.json'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -51,7 +51,7 @@ function handleExportSettings() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'bewly-settings.json'
+  a.download = 'bewly-bruce-settings.json'
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -72,12 +72,12 @@ async function handleResetSettings() {
 <template>
   <div>
     <div max-w-800px mx-auto>
-      <div relative w-200px m-auto>
-        <img :src="`${browser.runtime.getURL('/assets/bewly-vtuber-style-logo.png')}`" alt="" width="200">
+      <div relative w-112px m-auto>
+        <img :src="browser.runtime.getURL('/assets/icon-512.png')" alt="" width="112" height="112">
       </div>
       <section text-2xl text-center mt-2>
         <p flex="inline gap-2" fw-900>
-          <span>BewlyBewly</span>
+          <span>{{ displayName }}</span>
           <span v-if="isDev" inline-block text="$bew-warning-color"> Dev </span>
         </p>
         <p text="center sm $bew-text-2">

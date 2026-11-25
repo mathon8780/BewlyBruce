@@ -61,7 +61,9 @@ iframe_drawer:
 settings:
   group_playback_page: 播放頁面
   block_related_videos: 屏蔽相關推薦
-  block_related_videos_desc: 隱藏播放頁及播放器中的推薦內容，保留分 P、合集和選集。
+  block_related_videos_desc: 隱藏播放頁及播放器中的推薦內容，同時關閉自動連播。保留分 P、合集和選集。
+  block_charge_exclusive: 封鎖充電專屬
+  block_charge_exclusive_desc: 依網頁影片列表的標記隱藏充電專屬影片，保留明確標為限時免費的內容。收藏頁照常顯示。
   series_always_visible: 詳情始終顯示，無需懸停或點擊。
   series_behavior_hint: 實際卡片依此設定顯示詳情；預覽始終呈現展開結果。
   series_behavior: 顯示行為
@@ -100,8 +102,9 @@ settings:
   menu_general: 一般
   menu_desktop_and_dock: 桌面與 Dock
   menu_appearance: 外觀
-  menu_bewly_pages: BewlyBewly 頁面
+  menu_bewly_pages: BewlyBruce 頁面
   menu_home: 首頁
+  menu_video: 影片
   menu_search_page: 搜尋頁
   menu_about: 關於
   menu_compatibility: 相容性
@@ -192,8 +195,8 @@ settings:
   use_old_top_bar: 使用舊版頂欄
   auto_hide_top_bar: 自動隱藏頂欄
   show_top_bar_theme_color_gradient: 在頂欄顯示主題色漸變（僅在深色模式下有效）
-  show_bewly_or_bili_top_bar_switcher: 顯示 BewlyBewly/Bilibili 頂欄切換器
-  show_bewly_or_bili_page_switcher: 顯示 BewlyBewly/Bilibili 頁面切換器
+  show_bewly_or_bili_top_bar_switcher: 顯示 BewlyBruce/Bilibili 頂欄切換器
+  show_bewly_or_bili_page_switcher: 顯示 BewlyBruce/Bilibili 頁面切換器
   top_bar_icon_badges: 圖示標記樣式
   top_bar_icon_badges_opt:
     number: 數字
@@ -241,7 +244,7 @@ settings:
   customize_css: 自訂 CSS
   customize_css_desc: |-
     如果你不熟悉 CSS，請不要修改 CSS。否則可能會導致意外的顯示問題。
-    如果你在修改 CSS 後遇到任何問題，請重新安裝 BewlyBewly。
+    如果你在修改 CSS 後遇到任何問題，請重新安裝 BewlyBruce。
 
   # Search page
   logo_color: Logo 顏色
@@ -258,8 +261,8 @@ settings:
   # Home
   recommendation_mode: 推薦模式
   recommendation_mode_desc: |
-    如果您想要使用手機端的推薦演算法，請先授權 BewlyBewly 使用 access key。
-  authorize_app: 授權 BewlyBewly 使用 access key
+    如果您想要使用手機端的推薦演算法，請先授權 BewlyBruce 使用 access key。
+  authorize_app: 授權 BewlyBruce 使用 access key
   authorize_app_desc: >
     授權使用後能在首頁推送 bilibili 手機端推介演算法的影片，授權 key 的有效期約爲一個月，過了有效期後，請記得重新取得授權以取得 access
     key。
@@ -307,12 +310,12 @@ settings:
   # Compatibility
   # Common
   topbar_visibility: 頂欄可視性
-  topbar_visibility_desc: 如果你正在使用 Bilibili Evolved 的頂欄，你可以在這裏關閉 BewlyBewly 的頂欄。
+  topbar_visibility_desc: 如果你正在使用 Bilibili Evolved 的頂欄，你可以在這裏關閉 BewlyBruce 的頂欄。
   use_original_bilibili_homepage: 使用原版 Bilibili 首頁
   use_original_bilibili_homepage_desc: 當您變更此設定後，如果在首頁上，頁面將自動重新整理！
   use_original_bilibili_topbar: 使用原版 Bilibili 頂欄
   adapt_to_other_page_styles: 適應其他頁面風格
-  adapt_to_other_page_styles_desc: 適應一些常見頁面，以配合 BewlyBewly 主題。
+  adapt_to_other_page_styles_desc: 適應一些常見頁面，以配合 BewlyBruce 主題。
   # Bilibili Evolved
   follow_bilibili_evolved_color: 使用 Bilibili Evolved 主題色
   follow_bilibili_evolved_color_desc: 每次變更 Bilibili Evolved 主題色後，記得重新選取此選項以更新配置。
@@ -333,10 +336,10 @@ settings:
   contributors: 貢獻者
 
 auth:
-  auth_access_key_first: 在這之前請先授權 BewlyBewly 使用 access key
+  auth_access_key_first: 在這之前請先授權 BewlyBruce 使用 access key
 
 topbar:
-  switch_to_bewly_top_bar: 切換到 BewlyBewly 頂部欄
+  switch_to_bewly_top_bar: 切換到 BewlyBruce 頂部欄
   switch_to_bili_top_bar: 切換到 Bilibili/Bilibili-Evolved 頂部欄
 
   sign_in: 登入
@@ -347,6 +350,7 @@ topbar:
   watch_later: 稍後觀看
   creative_center: 創作中心
   upload: 上傳
+  channels: 分區
   logo_dropdown:
     anime: 動畫
     movies: 電影
@@ -438,6 +442,8 @@ dock:
 video_card:
   operation:
     not_interested: 不感興趣
+    block_uploader: 封鎖投稿者
+    more_actions: 影片選項
     open_in_new_tab: 新標籤頁開啓
     open_in_background: 後台開啓
     open_in_new_window: 新視窗開啓
@@ -452,6 +458,12 @@ video_card:
 
   group_contribution: '{firstAuthor} 等 {num} 人共同創作'
   video_removed: 影片已移除
+  uploader_blocked: 已封鎖 {name}
+  blocked_uploaders: 已封鎖的投稿者
+  blocked_uploaders_desc: 依主投稿者 UID 隱藏影片，名單儲存在目前的瀏覽器。正在關注和 App 推薦照常顯示。
+  blocked_uploaders_empty: 尚未封鎖任何投稿者
+  unblock_uploader: 移除封鎖
+  load_more: 載入更多
 
 home:
   series_plays: 播放量
@@ -509,6 +521,21 @@ history:
     你確定要啓用觀看記錄嗎？
 
 favorites:
+  own_folders: 我建立的收藏夾
+  saved_categories: 我追的合集/收藏夾
+  own_short: 我的收藏
+  saved_short: 合集
+  reorder_category: 拖曳調整「{title}」的順序，也可用方向鍵移動
+  show_own_folders: 切換到我建立的收藏夾
+  show_saved_categories: 切換到我追的合集/收藏夾
+  no_saved_categories: 尚未收藏任何合集或收藏夾
+  search_collection: 搜尋目前合集
+  make_public: 「{folder}」為私人，按一下可設為公開
+  make_private: 「{folder}」為公開，按一下可設為私人
+  confirm_public: 3 秒內再按一下，將「{folder}」設為公開
+  confirm_private: 3 秒內再按一下，將「{folder}」設為私人
+  now_public: 「{folder}」已設為公開
+  now_private: 「{folder}」已設為私人
   folders: 收藏夾
   search: 搜尋目前的收藏夾
   batch_manage: 批次管理

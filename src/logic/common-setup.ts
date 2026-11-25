@@ -10,7 +10,7 @@ import { i18n, loadLocale } from '~/utils/i18n'
 
 const pinia = createPinia()
 
-export async function setupApp(app: App, context: 'content-script' | 'popup' | 'options' = 'content-script') {
+export async function setupApp(app: App, context: 'content-script' | 'popup' | 'options' = 'content-script', toastContainer?: HTMLElement) {
   // Inject a globally available `$app` object in template
   app.config.globalProperties.$app = { context }
 
@@ -24,6 +24,7 @@ export async function setupApp(app: App, context: 'content-script' | 'popup' | '
   await loadLocale(settings.value.language || 'en')
   app.use(i18n)
   app.use(Toast, {
+    ...(toastContainer && { container: toastContainer }),
     transition: 'Vue-Toastification__fade',
     maxToasts: 20,
     newestOnTop: true,

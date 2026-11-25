@@ -2,6 +2,8 @@
 import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useWindowedFeed } from '~/composables/useWindowedFeed'
 import type { GridLayoutType } from '~/logic'
+import { isUploaderBlocked } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { List as VideoItem, TrendingResult } from '~/models/video/trending'
 import api from '~/utils/api'
 
@@ -9,8 +11,9 @@ interface VideoElement { uniqueId: string, item: VideoItem }
 const props = defineProps<{ gridLayout: GridLayoutType }>()
 const emit = defineEmits<{ (e: 'beforeLoading'): void, (e: 'afterLoading'): void }>()
 let page = 1
-const { items: videoList, isLoading, windowFull, loadFailed, load: getData, reset: initData, continueWindow } = useWindowedFeed<VideoElement>({
+const { visibleItems: videoList, isLoading, noMoreContent, windowFull, loadFailed, load: getData, reset: initData, continueWindow } = useWindowedFeed<VideoElement>({
   key: video => video.uniqueId,
+  isVisible: video => !isUploaderBlocked(video.item.owner.mid) && !shouldHideChargeExclusive(video.item),
   resetCursor: () => { page = 1 },
   beforeLoading: () => emit('beforeLoading'),
   afterLoading: () => emit('afterLoading'),
@@ -36,6 +39,7 @@ defineExpose({ initData })
           :cover-loading="index < 10 ? 'eager' : 'lazy'"
           reserve-title-space
           :skeleton="!video.item"
+          uploader-block
           :video="video.item ? {
             id: Number(video.item.aid),
             duration: video.item.duration,
@@ -65,6 +69,9 @@ defineExpose({ initData })
     </Button>
     <Button v-else-if="loadFailed" class="my-4" @click="getData">
       {{ $t('common.retry') }}
+    </Button>
+    <Button v-else-if="!isLoading && !noMoreContent && !videoList.length" class="my-4" @click="getData">
+      {{ $t('video_card.load_more') }}
     </Button>
   </div>
 </template>

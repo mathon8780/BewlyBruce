@@ -10,6 +10,8 @@ export enum MenuType {
 
 export enum BewlyPage {
   Home = 'Home',
+  Video = 'Video',
+  Blocking = 'Blocking',
   Search = 'Search',
   SubscribedSeries = 'SubscribedSeries',
 }

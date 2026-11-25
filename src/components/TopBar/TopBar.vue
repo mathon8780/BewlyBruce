@@ -447,14 +447,17 @@ defineExpose({
         </Transition>
 
         <div shrink-0 flex="inline xl:1 justify-start items-center gap-2" pos="relative" z-1>
-          <div ref="channels" z-1 relative w-fit>
+          <div ref="channels" z-1 relative w-fit flex="~ items-center gap-1">
+            <!-- 分区弹层的悬停区域向上延伸，首页链接和分区按钮需要在它上方。 -->
             <a
-              href="//www.bilibili.com"
+              href="https://www.bilibili.com/"
               target="_top"
+              :aria-label="$t('dock.home')"
               class="group logo"
               :class="{
                 activated: popupVisible.channels,
               }"
+              relative z-1
               grid="~ place-items-center"
               rounded="46px"
               duration-150
@@ -462,7 +465,6 @@ defineExpose({
               h-46px
               transform-gpu
               bg="hover:$bew-theme-color"
-              @click="(event) => handleClickTopBarItem(event, 'channels')"
             >
               <svg
                 t="1720198072316"
@@ -490,6 +492,21 @@ defineExpose({
                 />
               </svg>
             </a>
+
+            <button
+              v-if="settings.touchScreenOptimization"
+              type="button"
+              :aria-label="$t('topbar.channels')"
+              :aria-expanded="popupVisible.channels"
+              relative z-1
+              grid="~ place-items-center"
+              w-44px h-44px rounded-full cursor-pointer
+              :class="{ 'text-white': forceWhiteIcon }"
+              bg="hover:$bew-fill-2"
+              @click="handleClickTopBarItem($event, 'channels')"
+            >
+              <i i-solar:alt-arrow-down-linear text-lg aria-hidden="true" />
+            </button>
 
             <Transition name="channels-popover">
               <ChannelsPop

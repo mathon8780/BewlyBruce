@@ -6,9 +6,11 @@ import { useI18n } from 'vue-i18n'
 import Empty from '~/components/Empty.vue'
 import Loading from '~/components/Loading.vue'
 import Tooltip from '~/components/Tooltip.vue'
+import { settings } from '~/logic'
 import type { TopBarLiveMomentResult } from '~/models/moment/topBarLiveMoment'
 import type { TopBarMomentResult } from '~/models/moment/topBarMoment'
 import api from '~/utils/api'
+import { isChargeExclusive } from '~/utils/chargeExclusive'
 import { getCSRF, scrollToTop } from '~/utils/main'
 
 type MomentType = 'video' | 'live' | 'article'
@@ -26,11 +28,14 @@ interface MomentCard {
   cover: string
   link: string
   rid?: number
+  chargeExclusive?: boolean
 }
 
 const { t } = useI18n()
 
 const moments = reactive<MomentCard[]>([])
+const visibleMoments = computed(() => moments.map((moment, index) => ({ moment, index }))
+  .filter(({ moment }) => !settings.value.blockChargeExclusive || !moment.chargeExclusive))
 const addedWatchLaterList = reactive<number[]>([])
 const momentTabs = computed((): MomentTab[] => {
   return [
@@ -195,6 +200,7 @@ function getTopBarMoments() {
             cover: item.cover,
             link: item.jump_url,
             rid: item.rid,
+            chargeExclusive: selectedMomentTab.value.type === 'video' && isChargeExclusive(item),
           })),
         )
       }
@@ -335,11 +341,11 @@ defineExpose({
     <!-- moments wrapper -->
     <main rounded="$bew-radius" overflow-hidden p="x-4">
       <!-- loading -->
-      <Loading v-if="isLoading && moments.length === 0" h="full" flex="~" items="center" />
+      <Loading v-if="isLoading && visibleMoments.length === 0" h="full" flex="~" items="center" />
 
       <!-- empty -->
       <Empty
-        v-if="!isLoading && moments.length === 0"
+        v-if="!isLoading && visibleMoments.length === 0"
         pos="absolute top-0 left-0"
         bg="$bew-content"
         z="0"
@@ -352,7 +358,7 @@ defineExpose({
       <!-- moments -->
       <TransitionGroup name="list">
         <ALink
-          v-for="(moment, index) in moments"
+          v-for="{ moment, index } in visibleMoments"
           :key="index"
           :href="moment.link"
           type="topBar"
@@ -414,6 +420,7 @@ defineExpose({
             </div>
             <div
               class="group"
+              relative
               flex="~ items-center justify-center"
               w="82px"
               h="46px"
@@ -423,6 +430,7 @@ defineExpose({
               bg="$bew-skeleton"
             >
               <img :src="`${moment.cover}@128w_72h_1c`" w="82px" h="46px" rounded="$bew-radius-half">
+              <VideoListModeration v-if="moment.type === 'video' && moment.rid" :video-id="moment.rid" compact />
               <div
                 opacity-0
                 group-hover:opacity-100
@@ -457,7 +465,7 @@ defineExpose({
         {{ $t('common.retry') }}
       </Button>
       <Transition name="fade">
-        <Loading v-if="isLoading && moments.length !== 0" m="-t-4" />
+        <Loading v-if="isLoading && visibleMoments.length !== 0" m="-t-4" />
       </Transition>
     </main>
   </div>

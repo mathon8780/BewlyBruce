@@ -3,12 +3,16 @@ import Empty from '~/components/Empty.vue'
 import Loading from '~/components/Loading.vue'
 import Progress from '~/components/Progress.vue'
 import { useAsyncTask } from '~/composables/useAsyncTask'
+import { filterBlockedUploaders } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { List as VideoItem, WatchLaterResult } from '~/models/video/watchLater'
 import api from '~/utils/api'
 import { calcCurrentTime } from '~/utils/dataFormatter'
 import { getCSRF, removeHttpFromUrl } from '~/utils/main'
 
 const watchLaterList = reactive<VideoItem[]>([])
+const visibleWatchLaterList = computed(() => filterBlockedUploaders(watchLaterList, item => item.owner?.mid)
+  .filter(item => !shouldHideChargeExclusive(item)))
 const { isLoading, loadFailed, run } = useAsyncTask()
 const viewAllUrl = computed((): string => {
   return 'https://www.bilibili.com/watchlater/list'
@@ -44,7 +48,7 @@ function getAllWatchLaterList() {
   )
 }
 
-function deleteWatchLaterItem(index: number, aid: number) {
+function deleteWatchLaterItem(aid: number) {
   api.watchlater
     .removeFromWatchLater({
       aid,
@@ -52,7 +56,9 @@ function deleteWatchLaterItem(index: number, aid: number) {
     })
     .then((res) => {
       if (res.code === 0) {
-        watchLaterList.splice(index, 1)
+        const index = watchLaterList.findIndex(item => item.aid === aid)
+        if (index !== -1)
+          watchLaterList.splice(index, 1)
       }
     })
 }
@@ -105,11 +111,11 @@ function deleteWatchLaterItem(index: number, aid: number) {
       <Button v-if="loadFailed" @click="getAllWatchLaterList">
         {{ $t('common.retry') }}
       </Button>
-      <Loading v-if="isLoading && watchLaterList.length === 0" h="full" flex="~ items-center" />
+      <Loading v-if="isLoading && !visibleWatchLaterList.length" h="full" flex="~ items-center" />
 
       <!-- empty -->
       <Empty
-        v-if="!isLoading && watchLaterList.length === 0"
+        v-if="!isLoading && !visibleWatchLaterList.length"
         pos="absolute top-0 left-0"
         bg="$bew-content"
         z="0"
@@ -122,7 +128,7 @@ function deleteWatchLaterItem(index: number, aid: number) {
       <!-- watchlater -->
       <TransitionGroup name="list">
         <ALink
-          v-for="(item, index) in watchLaterList"
+          v-for="item in visibleWatchLaterList"
           :key="item.aid"
           :href="getWatchLaterUrl(item.bvid)"
           class="group"
@@ -156,13 +162,21 @@ function deleteWatchLaterItem(index: number, aid: number) {
                 text="white xs"
                 duration-300
                 border="rounded-full"
-                @click.stop.prevent="deleteWatchLaterItem(index, item.aid)"
+                @click.stop.prevent="deleteWatchLaterItem(item.aid)"
               >
                 <i i-mingcute:close-line />
               </div>
 
               <!-- Video -->
               <div pos="relative">
+                <VideoListModeration
+                  :video-id="item.aid"
+                  :bvid="item.bvid"
+                  :uploader-mid="item.owner?.mid"
+                  :uploader-name="item.owner?.name"
+                  :uploader-avatar="item.owner?.face"
+                  compact
+                />
                 <img
                   w="150px"
                   h-full
@@ -204,7 +218,7 @@ function deleteWatchLaterItem(index: number, aid: number) {
 
       <!-- loading -->
       <Transition name="fade">
-        <Loading v-if="isLoading && watchLaterList.length !== 0" m="-t-4" />
+        <Loading v-if="isLoading && visibleWatchLaterList.length" m="-t-4" />
       </Transition>
     </main>
   </div>

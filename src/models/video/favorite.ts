@@ -89,3 +89,31 @@ export interface MediaUpper {
   name: string
   face: string
 }
+
+export interface CollectedCategory {
+  id: number
+  mid: number
+  type: number
+  title: string
+  cover: string
+  media_count: number
+}
+
+export interface CollectedFoldersResult {
+  code: number
+  message: string
+  data?: { list: CollectedCategory[] | null, has_more: boolean }
+}
+
+export type FavoriteSeasonVideo = Pick<Media, 'id' | 'title' | 'cover' | 'duration' | 'pubtime' | 'bvid' | 'upper'> & {
+  cnt_info: Pick<MediaCntInfo, 'play' | 'danmaku'>
+}
+
+export interface FavoriteSeasonResult {
+  code: number
+  message: string
+  data?: {
+    info: Pick<Info, 'title' | 'cover' | 'media_count'>
+    medias: FavoriteSeasonVideo[] | null
+  }
+}

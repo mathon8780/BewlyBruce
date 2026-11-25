@@ -11,7 +11,7 @@ export interface DockItem {
   openInNewTab: boolean
   useOriginalBiliPage: boolean
   url: string
-  hasBewlyPage: boolean // Whether BewlyBewly has a page for this item
+  hasBewlyPage: boolean // Whether BewlyBruce has a page for this item
 }
 
 export const useMainStore = defineStore('main', () => {

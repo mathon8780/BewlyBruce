@@ -129,7 +129,7 @@ const showTopBar = computed((): boolean => {
   if (isNotificationPage() && settings.value.openNotificationsPageAsDrawer && isInIframe())
     return false
 
-  // When the user switches to the original Bilibili page, BewlyBewly will only show the top bar inside the iframe.
+  // When the user switches to the original Bilibili page, BewlyBruce will only show the top bar inside the iframe.
   // This helps prevent the outside top bar from covering the contents.
   // reference: https://github.com/BewlyBewly/BewlyBewly/issues/1235
 

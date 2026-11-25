@@ -3,7 +3,6 @@ import { Icon } from '@iconify/vue'
 import type { CSSProperties } from 'vue'
 import { useToast } from 'vue-toastification'
 
-import Button from '~/components/Button.vue'
 import { useBewlyApp } from '~/composables/useAppProvider'
 import { useVideoCardState } from '~/composables/useVideoCardState'
 import { accessKey, settings } from '~/logic'
@@ -21,6 +20,7 @@ import VideoCardAuthorAvatar from './VideoCardAuthor/components/VideoCardAuthorA
 import VideoCardAuthorName from './VideoCardAuthor/components/VideoCardAuthorName.vue'
 import VideoCardContextMenu from './VideoCardContextMenu/VideoCardContextMenu.vue'
 import VideoCardSkeleton from './VideoCardSkeleton.vue'
+import VideoRemovedCover from './VideoRemovedCover.vue'
 
 const props = withDefaults(defineProps<Props>(), {
   showWatcherLater: true,
@@ -40,6 +40,7 @@ interface Props {
   horizontal?: boolean
   showPreview?: boolean
   moreBtn?: boolean
+  uploaderBlock?: boolean
 }
 
 const toast = useToast()
@@ -92,6 +93,8 @@ let previewBackups: string[] = []
 const contentVisibility = ref<'auto' | 'visible'>('auto')
 const videoElement = ref<HTMLVideoElement | null>(null)
 const previewEnabled = computed(() => props.showPreview && settings.value.enableVideoPreview)
+const showPreviewControls = computed(() => previewReady.value && isHover.value && settings.value.enableVideoCtrlBarOnVideoCard)
+const danmakuCount = computed(() => numFormatter(props.video?.danmaku || props.video?.danmakuStr || 0).trim())
 
 watch(
   [isHover, previewEnabled, removed, retriedPreview],
@@ -331,29 +334,7 @@ provide('getVideoType', () => props.type!)
               rounded="$bew-radius"
             />
 
-            <div
-              v-if="removed"
-              pos="absolute top-0 left-0"
-              w-full
-              h-fit
-              aspect-video
-              flex="~ col gap-2 items-center justify-center"
-              bg="$bew-fill-4"
-              backdrop-blur-20px
-              mix-blend-luminosity
-              rounded="$bew-radius"
-              z-2
-            >
-              <p mb-2 color-white text-lg>
-                {{ $t('video_card.video_removed') }}
-              </p>
-              <Button color="rgba(255,255,255,.35)" text-color="white" size="small" @click.prevent.stop="handleUndo">
-                <template #left>
-                  <div i-mingcute-back-line text-lg />
-                </template>
-                {{ $t('common.undo') }}
-              </Button>
-            </div>
+            <VideoRemovedCover v-if="removed" @undo="handleUndo" />
 
             <!-- Video preview -->
             <Transition v-if="!removed && previewEnabled" name="fade">
@@ -368,7 +349,7 @@ provide('getVideoType', () => props.type!)
                 playsinline
                 :controls="settings.enableVideoCtrlBarOnVideoCard"
                 :class="{ 'opacity-0': !previewReady }"
-                :style="{ pointerEvents: previewReady && settings.enableVideoCtrlBarOnVideoCard ? 'auto' : 'none' }"
+                :style="{ pointerEvents: showPreviewControls ? 'auto' : 'none' }"
                 pos="absolute top-0 left-0"
                 w-full
                 aspect-video
@@ -415,20 +396,38 @@ provide('getVideoType', () => props.type!)
             </div>
 
             <template v-if="!removed">
-              <!-- Video Duration -->
               <div
-                v-if="video.duration || video.durationStr"
-                pos="absolute bottom-0 right-0"
-                z="2"
-                p="x-2 y-1"
-                m="1"
-                rounded="$bew-radius"
-                text="!white xs"
-                bg="black opacity-60"
-                class="group-hover:opacity-0"
-                duration-300
+                class="video-card-cover-footer"
+                :class="{ 'video-card-cover-footer--above-controls': showPreviewControls }"
               >
-                {{ video.duration ? calcCurrentTime(video.duration) : video.durationStr }}
+                <div v-if="video.view || video.viewStr || video.danmaku || video.danmakuStr" class="video-card-stats">
+                  <span v-if="video.view || video.viewStr">
+                    <i i-tabler:player-play aria-hidden="true" />
+                    {{
+                      video.view
+                        ? $t('common.view', { count: numFormatter(video.view) }, video.view)
+                        : `${numFormatter(video.viewStr || '0')}${$t('common.viewWithoutNum')}`
+                    }}
+                  </span>
+                  <span
+                    v-if="video.danmaku || video.danmakuStr"
+                    role="img"
+                    :aria-label="video.danmaku
+                      ? $t('common.danmaku', { count: danmakuCount }, video.danmaku)
+                      : `${danmakuCount}${$t('common.danmakuWithoutNum')}`"
+                  >
+                    <i i-tabler:message-dots aria-hidden="true" />
+                    {{ danmakuCount }}
+                  </span>
+                </div>
+                <div
+                  v-if="video.duration || video.durationStr"
+                  class="group-hover:opacity-0"
+                  m-s-auto shrink-0 p="x-2 y-1" rounded="$bew-radius"
+                  text="!white xs" bg="black opacity-60" duration-300
+                >
+                  {{ video.duration ? calcCurrentTime(video.duration) : video.durationStr }}
+                </div>
               </div>
 
               <div
@@ -572,27 +571,6 @@ provide('getVideoType', () => props.type!)
                 </span>
               </div>
 
-              <div flex="~ items-center gap-1 wrap">
-                <!-- View & Danmaku Count -->
-                <div text="sm $bew-text-2" rounded="$bew-radius" inline-block>
-                  <span v-if="video.view || video.viewStr">
-                    {{
-                      video.view
-                        ? $t('common.view', { count: numFormatter(video.view) }, video.view)
-                        : `${numFormatter(video.viewStr || '0')}${$t('common.viewWithoutNum')}`
-                    }}
-                  </span>
-                  <template v-if="video.danmaku || video.danmakuStr">
-                    <span text-xs font-light mx-4px>•</span>
-                    <span>{{
-                      video.danmaku
-                        ? $t('common.danmaku', { count: numFormatter(video.danmaku) }, video.danmaku)
-                        : `${numFormatter(video.danmakuStr || '0')}${$t('common.danmakuWithoutNum')}`
-                    }}</span>
-                  </template>
-                  <br>
-                </div>
-              </div>
               <div mt-2 flex="~ gap-1 wrap" text="sm">
                 <!-- Tag -->
                 <span
@@ -643,6 +621,7 @@ provide('getVideoType', () => props.type!)
           url: videoUrl,
         }"
         :context-menu-styles="videoOptionsFloatingStyles"
+        :uploader-block="uploaderBlock"
         @close="showVideoOptions = false"
         @removed="handleRemoved"
       />
@@ -658,6 +637,66 @@ provide('getVideoType', () => props.type!)
 
 .vertical-card-cover {
   --uno: "w-full";
+}
+
+.video-card-cover-footer {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 4px;
+  inset-block-end: 4px;
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.video-card-cover-footer--above-controls {
+  inset-block-end: 3rem;
+}
+
+.video-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  padding: 4px 7px;
+  border-radius: var(--bew-radius);
+  background: rgb(0 0 0 / 72%);
+  color: white;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    visibility 0s linear 120ms;
+
+  > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+}
+
+.video-card:has(:focus-visible) .video-card-stats {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+@media (hover: hover) {
+  .video-card:hover .video-card-stats {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-card-stats {
+    transition: none;
+  }
 }
 
 .more-active {

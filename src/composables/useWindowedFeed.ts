@@ -23,11 +23,13 @@ export function useWindowedFeed<T>(options: {
   loadPage: (current: () => boolean, publish?: (page: FeedPage<T>) => void) => Promise<FeedPage<T>>
   resetCursor: () => void
   merge?: (previous: T, next: T) => T | undefined
+  isVisible?: (item: T) => boolean
   beforeLoading: () => void
   afterLoading: () => void
   minPages?: number
   windowSize?: number
   scrollTarget?: () => number
+  pageRefresh?: () => void | Promise<void>
   cacheIdentity?: () => unknown
   snapshot?: {
     read: () => Promise<FeedSnapshot<T> | undefined>
@@ -38,6 +40,7 @@ export function useWindowedFeed<T>(options: {
   const { handleReachBottom, handlePageRefresh, handleBackToTop, haveScrollbar } = useBewlyApp()
   const cardState = provideVideoCardState()
   const items = shallowRef<T[]>([])
+  const visibleItems = computed(() => options.isVisible ? items.value.filter(options.isVisible) : items.value)
   const pending = shallowRef<T[]>([])
   const isLoading = shallowRef(false)
   const noMoreContent = shallowRef(false)
@@ -105,14 +108,14 @@ export function useWindowedFeed<T>(options: {
           loadFailed.value = true
           return
         }
-        if (page + 1 >= (options.minPages ?? 1) && await haveScrollbar())
+        if (page + 1 >= (options.minPages ?? 1) && visibleItems.value.length && await haveScrollbar())
           return
       }
     }
     catch (error) {
       if (current()) {
         loadFailed.value = true
-        console.error('[BewlyBewly] Could not load feed', error)
+        console.error('[BewlyBruce] Could not load feed', error)
       }
     }
     finally {
@@ -170,13 +173,13 @@ export function useWindowedFeed<T>(options: {
       showingSnapshot.value = false
       refreshPending = false
       const persist = result.unauthorized ? options.snapshot!.remove() : options.snapshot!.write(result)
-      void persist.catch(error => console.error('[BewlyBewly] Could not persist feed snapshot', error))
+      void persist.catch(error => console.error('[BewlyBruce] Could not persist feed snapshot', error))
     }
     catch (error) {
       if (current()) {
         loadFailed.value = true
         refreshPending = false
-        console.error('[BewlyBewly] Could not refresh feed snapshot', error)
+        console.error('[BewlyBruce] Could not refresh feed snapshot', error)
       }
     }
     finally {
@@ -227,9 +230,11 @@ export function useWindowedFeed<T>(options: {
       void load()
   }
 
+  const refreshPage = options.pageRefresh ?? reset
+
   function bindActions() {
     handleReachBottom.value = loadMore
-    handlePageRefresh.value = reset
+    handlePageRefresh.value = refreshPage
   }
 
   function stop() {
@@ -239,7 +244,7 @@ export function useWindowedFeed<T>(options: {
     options.afterLoading()
     if (handleReachBottom.value === loadMore)
       handleReachBottom.value = undefined
-    if (handlePageRefresh.value === reset)
+    if (handlePageRefresh.value === refreshPage)
       handlePageRefresh.value = undefined
   }
 
@@ -264,5 +269,5 @@ export function useWindowedFeed<T>(options: {
   onDeactivated(stop)
   onBeforeUnmount(stop)
 
-  return { items, isLoading, noMoreContent, needToLoginFirst, loadFailed, showingSnapshot, windowFull, load, reset, continueWindow }
+  return { items, visibleItems, isLoading, noMoreContent, needToLoginFirst, loadFailed, showingSnapshot, windowFull, load, reset, continueWindow }
 }

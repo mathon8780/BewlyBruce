@@ -5,6 +5,9 @@ import { useToast } from 'vue-toastification'
 
 import VirtualFeed from '~/components/VirtualFeed.vue'
 import { useBewlyApp } from '~/composables/useAppProvider'
+import { provideVideoCardState } from '~/composables/useVideoCardState'
+import { filterBlockedUploaders } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { HistoryResult, List as HistoryItem } from '~/models/history/history'
 import { Business } from '~/models/history/history'
 import type { HistorySearchResult } from '~/models/video/historySearch'
@@ -21,6 +24,8 @@ const { setActivatedCover } = useMainStore()
 const isLoading = ref(false)
 const noMoreContent = ref(false)
 const historyList = shallowRef<HistoryItem[]>([])
+const visibleHistory = computed(() => filterBlockedUploaders(historyList.value, item => item.history.business === Business.ARCHIVE ? item.author_mid : undefined)
+  .filter(item => !shouldHideChargeExclusive(item)))
 const keyword = ref<string>()
 const historyStatus = ref<boolean>()
 const loadFailed = ref(false)
@@ -29,6 +34,7 @@ const isUpdating = ref(false)
 const deletedKeys = new Set<HistoryItem['kid']>()
 const { handlePageRefresh, handleReachBottom, haveScrollbar, handleBackToTop } = useBewlyApp()
 const generation = requestGeneration()
+const cardStates = provideVideoCardState()
 const WINDOW_SIZE = 600
 let currentPageNum = 1
 let cursor = 0
@@ -62,6 +68,7 @@ async function resetHistory() {
   if (!getCSRF())
     return
   generation.invalidate()
+  cardStates.clear()
   deletedKeys.clear()
   isLoading.value = false
   historyList.value = []
@@ -114,7 +121,7 @@ async function getHistoryList() {
       },
       needsMore: async () => {
         await nextTick()
-        return current() && !await haveScrollbar()
+        return current() && (!visibleHistory.value.length || !await haveScrollbar())
       },
     })
   }
@@ -130,6 +137,7 @@ async function getHistoryList() {
 
 async function continueWindow() {
   generation.invalidate()
+  cardStates.clear()
   historyList.value = pending
   pending = []
   windowFull.value = false
@@ -296,7 +304,7 @@ function handleMouseEnter(item: HistoryItem) {
         {{ $t('history.title') }}
       </h3>
       <!-- historyList -->
-      <VirtualFeed :items="historyList" :item-key="item => item.kid">
+      <VirtualFeed :items="visibleHistory" :item-key="item => item.kid">
         <template #default="{ item: historyItem, index }">
           <div
             class="group" flex
@@ -431,6 +439,14 @@ function handleMouseEnter(item: HistoryItem) {
                     "
                   />
                 </div>
+                <VideoListModeration
+                  v-if="historyItem.history.business === HistoryBusiness.ARCHIVE"
+                  :video-id="historyItem.history.oid"
+                  :bvid="historyItem.history.bvid"
+                  :uploader-mid="historyItem.author_mid"
+                  :uploader-name="historyItem.author_name"
+                  :uploader-avatar="historyItem.author_face"
+                />
               </div>
 
               <!-- Description -->
@@ -536,6 +552,9 @@ function handleMouseEnter(item: HistoryItem) {
       </Button>
       <Button v-else-if="loadFailed" class="my-4" @click="getHistoryList">
         {{ $t('common.retry') }}
+      </Button>
+      <Button v-else-if="!isLoading && !noMoreContent && historyList.length && !visibleHistory.length" class="my-4" @click="getHistoryList">
+        {{ $t('video_card.load_more') }}
       </Button>
 
       <!-- no more content -->

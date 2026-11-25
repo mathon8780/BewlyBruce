@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { removeHttpFromUrl } from '~/utils/main'
+import { normalizeUploaderAvatar } from '~/utils/blockedUploaders'
 
 import type { Author } from '../../types'
 import { getAuthorJumpUrl } from '../../utils'
@@ -19,6 +19,19 @@ const displayedAvatars = computed(() => {
   else
     return [props.author]
 })
+const avatarSources = computed(() => displayedAvatars.value.map(item => ({
+  item,
+  src: normalizeUploaderAvatar(item.authorFace),
+})))
+const failedThumbnails = reactive(new Set<string>())
+const failedImages = reactive(new Set<string>())
+
+function scaledAvatar(src: string) {
+  const url = new URL(src)
+  return url.hostname.endsWith('.hdslb.com') && !url.pathname.includes('@') && !url.search
+    ? `${src}@50w_50h_1c`
+    : undefined
+}
 </script>
 
 <template>
@@ -32,9 +45,9 @@ const displayedAvatars = computed(() => {
     shrink-0
   >
     <a
-      v-for="(item, index) in displayedAvatars"
+      v-for="({ item, src }, index) in avatarSources"
       :key="index"
-      :href="getAuthorJumpUrl(item)" target="_blank"
+      :href="getAuthorJumpUrl(item)" :aria-label="item.name" target="_blank"
       rounded="1/2"
       object="center cover" bg="$bew-skeleton" cursor="pointer"
       position-absolute top-0 inline-block
@@ -49,11 +62,30 @@ const displayedAvatars = computed(() => {
     >
       <!-- Avatar -->
       <Picture
-        :src="`${removeHttpFromUrl(item.authorFace)}@50w_50h_1c`"
+        v-if="src && scaledAvatar(src) && !failedThumbnails.has(src)"
+        :src="scaledAvatar(src)!"
         loading="lazy"
         w-inherit h-inherit
         rounded="1/2"
+        @error.capture="failedThumbnails.add(src)"
       />
+      <img
+        v-else-if="src && !failedImages.has(src)"
+        :src="src"
+        alt=""
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        block w-inherit h-inherit object-cover rounded-inherit
+        @error="failedImages.add(src)"
+      >
+      <span
+        v-else
+        class="author-avatar-fallback"
+        aria-hidden="true"
+        grid place-items-center w-full h-full text="$bew-text-2"
+      >
+        <i i-mingcute:user-3-line />
+      </span>
 
       <!-- Following Flag -->
       <div

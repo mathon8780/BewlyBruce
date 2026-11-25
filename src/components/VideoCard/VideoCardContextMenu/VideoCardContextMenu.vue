@@ -3,7 +3,9 @@ import type { CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useBewlyApp } from '~/composables/useAppProvider'
+import { useBlockUploader } from '~/composables/useBlockUploader'
 import { Type as ThreePointV2Type } from '~/models/video/appForYou'
+import { normalizeUploaderMid } from '~/utils/blockedUploaders'
 import { openLinkToNewTab } from '~/utils/main'
 import { openLinkInBackground } from '~/utils/tabs'
 
@@ -13,6 +15,7 @@ import DislikeDialog from './components/DislikeDialog.vue'
 const props = defineProps<{
   video: Video
   contextMenuStyles: CSSProperties
+  uploaderBlock?: boolean
 }>()
 const emit = defineEmits<{
   (event: 'removed', selectedOpt?: { dislikeReasonId: number }): void
@@ -21,11 +24,14 @@ const emit = defineEmits<{
 }>()
 
 const getVideoType = inject<() => string>('getVideoType')!
-
-const videoOptions = reactive<{ id: number, name: string }[]>([
-  { id: 1, name: '不感兴趣' },
-  { id: 2, name: '不想看此UP主' },
-])
+const showLocalActions = computed(() => getVideoType() === 'rcmd' || (getVideoType() === 'common' && !!props.video.bvid))
+const uploader = computed(() => {
+  const author = props.video.author
+  if (props.uploaderBlock && !Array.isArray(author) && normalizeUploaderMid(author?.mid))
+    return author
+  return undefined
+})
+const blockUploader = useBlockUploader()
 
 const { t } = useI18n()
 const showContextMenu = ref<boolean>(false)
@@ -82,8 +88,11 @@ onMounted(() => {
   showContextMenu.value = true
 })
 
-function handleMoreCommand(_command: number) {
-  handleRemoved()
+function handleBlockUploader() {
+  const author = uploader.value
+  if (author)
+    void blockUploader(author.mid, author.name, author.authorFace)
+  handleClose()
 }
 
 function handleAppMoreCommand(command: ThreePointV2Type) {
@@ -189,18 +198,24 @@ function handleRemoved(selectedOpt?: { dislikeReasonId: number }) {
               </li>
             </template>
           </template>
-          <template v-else-if="getVideoType() === 'rcmd'">
+          <template v-else-if="showLocalActions">
             <li
-              v-for="option in videoOptions" :key="option.id"
               class="context-menu-item"
-              @click="handleMoreCommand(option.id)"
+              @click="handleRemoved()"
             >
               <i class="item-icon" i-solar:confounded-circle-bold-duotone />
-              {{ option.name }}
+              {{ $t('video_card.operation.not_interested') }}
             </li>
+            <li
+              v-if="uploader"
+              class="context-menu-item"
+              @click="handleBlockUploader"
+            >
+              <i class="item-icon" i-mingcute:user-x-line />
+              {{ $t('video_card.operation.block_uploader') }}
+            </li>
+            <div class="divider" />
           </template>
-
-          <div v-if="getVideoType() === 'rcmd'" class="divider" />
 
           <template v-for="(optionGroup, index) in commonOptions" :key="index">
             <li

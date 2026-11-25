@@ -5,6 +5,8 @@ import { useBewlyApp } from '~/composables/useAppProvider'
 import { useAsyncTask } from '~/composables/useAsyncTask'
 import type { GridLayoutType } from '~/logic'
 import { settings } from '~/logic'
+import { isUploaderBlocked } from '~/logic/blockedUploaders'
+import { shouldHideChargeExclusive } from '~/logic/chargeExclusive'
 import type { List as RankingVideoItem, RankingResult } from '~/models/video/ranking'
 import type { List as RankingPgcItem, RankingPgcResult } from '~/models/video/rankingPgc'
 import api from '~/utils/api'
@@ -70,6 +72,8 @@ const rankingTypes = computed((): RankingType[] => {
 const { isLoading, loadFailed, run } = useAsyncTask()
 const activatedRankingType = ref<RankingType>({ ...rankingTypes.value[0] })
 const videoList = reactive<RankingVideoItem[]>([])
+const visibleRankedVideos = computed(() => videoList.map((video, index) => ({ video, rank: index + 1 }))
+  .filter(({ video }) => !isUploaderBlocked(video.owner.mid) && !shouldHideChargeExclusive(video)))
 const PgcList = reactive<RankingPgcItem[]>([])
 const shouldMoveAsideUp = ref<boolean>(false)
 
@@ -89,7 +93,7 @@ watch(
 
     // Allow moving tabs up only when the top bar is not hidden & is set to auto-hide
     // This feature is primarily designed to compatible with the Bilibili Evolved's top bar
-    // Even when the BewlyBewly top bar is hidden, the Bilibili Evolved top bar still exists, so not moving up
+    // Even when the BewlyBruce top bar is hidden, the Bilibili Evolved top bar still exists, so not moving up
     if (settings.value.autoHideTopBar && settings.value.showTopBar) {
       if (props.topBarVisibility)
         shouldMoveAsideUp.value = false
@@ -201,9 +205,10 @@ function getRankingPgc() {
     <main w-full :class="gridClass">
       <template v-if="!('seasonType' in activatedRankingType)">
         <VideoCard
-          v-for="(video, index) in videoList"
+          v-for="{ video, rank } in visibleRankedVideos"
           :key="video.aid"
           reserve-title-space
+          uploader-block
           :video="{
             id: Number(video.aid),
             duration: video.duration,
@@ -219,7 +224,7 @@ function getRankingPgc() {
             danmaku: video.stat.danmaku,
             publishedTimestamp: video.pubdate,
             bvid: video.bvid,
-            rank: index + 1,
+            rank,
             cid: video.cid,
           }"
           show-preview

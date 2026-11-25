@@ -5,6 +5,7 @@ import type { Ref } from 'vue'
 import Empty from '~/components/Empty.vue'
 import Loading from '~/components/Loading.vue'
 import { useAsyncTask } from '~/composables/useAsyncTask'
+import { filterBlockedUploaders } from '~/logic/blockedUploaders'
 import api from '~/utils/api'
 import { calcCurrentTime } from '~/utils/dataFormatter'
 import { getUserID, removeHttpFromUrl, scrollToTop } from '~/utils/main'
@@ -13,6 +14,7 @@ import type { FavoriteCategory, FavoriteResource } from '../types'
 
 const favoriteCategories = reactive<Array<FavoriteCategory>>([])
 const favoriteResources = reactive<Array<FavoriteResource>>([])
+const visibleFavorites = computed(() => filterBlockedUploaders(favoriteResources, item => item.bvid && !isMusic(item) ? item.upper?.mid : undefined))
 
 const activatedMediaId = ref<number>(0)
 const activatedFavoriteTitle = ref<string>()
@@ -78,7 +80,7 @@ function getFavoriteResources() {
         throw new Error(res.message)
       const items = res.data.medias || []
       favoriteResources.push(...items)
-      noMoreContent.value = items.length < 20
+      noMoreContent.value = !items.length || res.data.has_more === false
       currentPageNum.value++
     },
   )
@@ -166,8 +168,11 @@ defineExpose({
         <Button v-if="loadFailed" @click="activatedMediaId ? getFavoriteResources() : initData()">
           {{ $t('common.retry') }}
         </Button>
+        <Button v-else-if="!isLoading && !noMoreContent && favoriteResources.length && !visibleFavorites.length" @click="getFavoriteResources">
+          {{ $t('video_card.load_more') }}
+        </Button>
         <Loading
-          v-if="isLoading && favoriteResources.length === 0"
+          v-if="isLoading && !visibleFavorites.length"
           pos="absolute left-0"
           bg="$bew-content"
           z="1"
@@ -179,12 +184,12 @@ defineExpose({
         />
 
         <!-- empty -->
-        <Empty v-if="!isLoading && favoriteResources.length === 0" w="full" h="full" rounded="$bew-radius-half" />
+        <Empty v-if="!isLoading && !visibleFavorites.length && (!favoriteResources.length || noMoreContent)" w="full" h="full" rounded="$bew-radius-half" />
 
         <!-- favorites -->
         <TransitionGroup name="list">
           <ALink
-            v-for="item in favoriteResources"
+            v-for="item in visibleFavorites"
             :key="item.id"
             :href="
               isMusic(item) ? `https://www.bilibili.com/audio/au${item.id}` : `//www.bilibili.com/video/${item.bvid}`
@@ -200,6 +205,15 @@ defineExpose({
             <section flex="~ gap-4" item-start>
               <div bg="$bew-skeleton" w="120px" flex="shrink-0" rounded="$bew-radius-half" overflow="hidden">
                 <div pos="relative">
+                  <VideoListModeration
+                    v-if="item.bvid && !isMusic(item)"
+                    :video-id="item.id"
+                    :bvid="item.bvid"
+                    :uploader-mid="item.upper?.mid"
+                    :uploader-name="item.upper?.name"
+                    :uploader-avatar="item.upper?.face"
+                    compact
+                  />
                   <img
                     w="120px"
                     class="aspect-video"
@@ -235,7 +249,7 @@ defineExpose({
 
         <!-- loading -->
         <Transition name="fade">
-          <Loading v-if="isLoading && favoriteResources.length !== 0" m="-t-4" />
+          <Loading v-if="isLoading && visibleFavorites.length" m="-t-4" />
         </Transition>
       </div>
     </main>

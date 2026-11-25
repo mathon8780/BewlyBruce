@@ -1,5 +1,6 @@
 import { useStorageLocal } from '~/composables/useStorageLocal'
 
+import { blockedUploadersReady } from './blockedUploaders'
 import type { Settings } from './settings'
 import { originalSettings } from './settings'
 import { wallpaperMigrationFields, wallpaperSettingsSerializer } from './wallpaperStorage'
@@ -48,4 +49,5 @@ export const settingsReady: Promise<void> = Promise.all([
   gridLayout.ready,
   sidePanel.ready,
   accessKey.ready,
+  blockedUploadersReady,
 ]).then(() => {})

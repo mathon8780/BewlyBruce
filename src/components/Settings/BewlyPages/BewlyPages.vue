@@ -15,6 +15,20 @@ const pages = [
     component: defineAsyncComponent(() => import('./Home/Home.vue')),
   },
   {
+    value: BewlyPage.Video,
+    title: 'settings.menu_video',
+    icon: 'i-mingcute:video-line',
+    iconActivated: 'i-mingcute:video-fill',
+    component: defineAsyncComponent(() => import('./Video/Video.vue')),
+  },
+  {
+    value: BewlyPage.Blocking,
+    title: 'settings.group_blocking',
+    icon: 'i-mingcute:forbid-circle-line',
+    iconActivated: 'i-mingcute:forbid-circle-fill',
+    component: defineAsyncComponent(() => import('./Blocking/Blocking.vue')),
+  },
+  {
     value: BewlyPage.Search,
     title: 'settings.menu_search_page',
     icon: 'i-mingcute:search-2-line',

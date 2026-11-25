@@ -21,10 +21,7 @@ defineProps<{
           <div w-full h-5 bg="$bew-skeleton" rounded-4px />
           <div w="3/4" h-5 bg="$bew-skeleton" rounded-4px />
         </div>
-        <div flex="~ col gap-2" mb-3>
-          <div w="40%" h-3 bg="$bew-skeleton" rounded-4px />
-          <div w="60%" h-3 bg="$bew-skeleton" rounded-4px />
-        </div>
+        <div w="40%" h-3 mb-3 bg="$bew-skeleton" rounded-4px />
         <div
           text="transparent sm" inline-block p="x-2" lh-22px
           bg="$bew-skeleton" rounded-4
@@ -66,7 +63,6 @@ defineProps<{
 
             <div w="40%" h-5 bg="$bew-skeleton" rounded-4px />
           </div>
-          <div w="60%" h-4 bg="$bew-skeleton" rounded-4px />
           <div
             text="transparent sm" inline-block w-fit
             lh-6 p="x-2" mt-1
